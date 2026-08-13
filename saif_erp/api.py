@@ -30,8 +30,8 @@ def _hr_overview():
 		from `tabLeave Application` la join `tabEmployee` e on e.name = la.employee
 		where la.docstatus=1 and la.status='Approved' and la.from_date <= %s and la.to_date >= %s
 		order by la.to_date""", (tdy, tdy), as_dict=True)
-	# per-employee leave balances (Annual/Earned, Sick, Casual)
-	lts = ["Annual Leave", "Earned Leave", "Sick Leave (Medical Certificate)", "Casual Leave"]
+	# per-employee leave balances (Annual/Earned, Sick, Casual, Legacy = carried-over)
+	lts = ["Annual Leave", "Earned Leave", "Sick Leave (Medical Certificate)", "Casual Leave", "Legacy Leave"]
 	rows = frappe.db.sql(
 		"""select e.name emp, e.employee_name nm, e.company co, lle.leave_type lt, round(sum(lle.leaves),1) bal
 		from `tabLeave Ledger Entry` lle join `tabEmployee` e on e.name = lle.employee
@@ -39,39 +39,39 @@ def _hr_overview():
 		group by e.name, lle.leave_type""", {"lts": tuple(lts)}, as_dict=True)
 	bymap = {}
 	for r in rows:
-		d = bymap.setdefault(r.emp, {"employee_name": r.nm, "company": r.co, "annual": 0, "sick": 0, "casual": 0})
+		d = bymap.setdefault(r.emp, {"employee_name": r.nm, "company": r.co, "annual": 0, "sick": 0, "casual": 0, "legacy": 0})
 		if r.lt in ("Annual Leave", "Earned Leave"):
 			d["annual"] = r.bal
 		elif "Sick" in r.lt:
 			d["sick"] = r.bal
 		elif r.lt == "Casual Leave":
 			d["casual"] = r.bal
-	team_leave = sorted(bymap.values(), key=lambda x: x["employee_name"])
-	return {"active": active, "headcount": headcount, "on_leave": on_leave, "team_leave": team_leave}
+		elif r.lt == "Legacy Leave":
+			d["legacy"] = r.bal
+	team_leave = sorted(bymap.values(), key=lambda x: (x["company"] or "", x["employee_name"]))
+	# team attendance this month (holiday-aware, per employee)
+	team_attendance = []
+	for e in frappe.get_all("Employee", filters={"status": "Active"}, fields=["name", "employee_name", "company"], order_by="company, employee_name"):
+		a = _attendance_for(e.name)
+		team_attendance.append({"employee_name": e.employee_name, "company": e.company,
+		                        "present": a.get("Present", 0), "absent": a.get("Absent", 0),
+		                        "on_leave": a.get("On Leave", 0), "holidays": a.get("holidays", 0),
+		                        "working_days": a.get("working_days", 0)})
+	month = frappe.utils.getdate(frappe.utils.today()).strftime("%B %Y")
+	return {"active": active, "headcount": headcount, "on_leave": on_leave, "team_leave": team_leave,
+	        "team_attendance": team_attendance, "month": month}
 
 
-def _personal(emp):
-	"""Personal leave balance + holiday-aware attendance for one employee.
-	Used by both the staff 'My Work' view and the manager's own card."""
-	empty = {"my_leave": [], "my_attendance": {}, "my_checkins": []}
-	if not emp:
-		return empty
+def _attendance_for(emp):
+	"""Holiday-aware attendance summary (this month) for one employee.
+	Excludes the weekly-off day (e.g. Sunday) and public holidays from the
+	employee's Holiday List. Public holidays are Holiday rows; the weekly-off
+	is only a setting, so we exclude it by weekday."""
 	from datetime import timedelta
-
-	my_leave = frappe.db.sql(
-		"""select leave_type,
-			sum(case when transaction_type='Leave Allocation' and is_expired=0 and leaves>0 then leaves else 0 end) allocated,
-			-1*sum(case when transaction_type='Leave Application' then leaves else 0 end) taken,
-			sum(leaves) balance
-		from `tabLeave Ledger Entry` where employee=%s and docstatus=1
-		group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
-		emp, as_dict=True,
-	)
+	if not emp:
+		return {}
 	month_start = frappe.utils.getdate(frappe.utils.get_first_day(frappe.utils.today()))
 	tdy = frappe.utils.getdate(frappe.utils.today())
-	# Off-days = weekly-off day-of-week (e.g. Sunday) + public holidays from the
-	# employee's holiday list. Public holidays are Holiday rows; the weekly-off
-	# is only a setting, so we exclude it by weekday.
 	emp_hl = frappe.db.get_value("Employee", emp, "holiday_list")
 	holiday_dates, wo_idx = set(), None
 	if emp_hl:
@@ -91,8 +91,26 @@ def _personal(emp):
 		counts[r.status] = counts.get(r.status, 0) + 1
 	elapsed = (tdy - month_start).days + 1
 	working_days = sum(1 for i in range(elapsed) if not is_off(month_start + timedelta(days=i)))
-	my_attendance = {**counts, "holidays": elapsed - working_days, "working_days": working_days,
-	                 "holiday_list": emp_hl, "month": tdy.strftime("%B %Y")}
+	return {**counts, "holidays": elapsed - working_days, "working_days": working_days,
+	        "holiday_list": emp_hl, "month": tdy.strftime("%B %Y")}
+
+
+def _personal(emp):
+	"""Personal leave balance + holiday-aware attendance for one employee.
+	Used by both the staff 'My Work' view and the manager's own card."""
+	empty = {"my_leave": [], "my_attendance": {}, "my_checkins": []}
+	if not emp:
+		return empty
+	my_leave = frappe.db.sql(
+		"""select leave_type,
+			sum(case when transaction_type='Leave Allocation' and is_expired=0 and leaves>0 then leaves else 0 end) allocated,
+			-1*sum(case when transaction_type='Leave Application' then leaves else 0 end) taken,
+			sum(leaves) balance
+		from `tabLeave Ledger Entry` where employee=%s and docstatus=1
+		group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
+		emp, as_dict=True,
+	)
+	my_attendance = _attendance_for(emp)
 	my_checkins = frappe.get_all(
 		"Employee Checkin", filters={"employee": emp},
 		fields=["log_type", "time"], order_by="time desc", limit=8,

@@ -209,9 +209,9 @@ function render($root, d, actions) {
 		parts.push(section("Team & HR · all employees", hrSection(d.hr)));
 	}
 
-	// the manager is also an employee — show their own attendance
+	// non-HR managers: show their own attendance (HR admins get the team table above)
 	const mp = d.me_personal || {};
-	if (mp.my_attendance && mp.my_attendance.holiday_list) {
+	if (!d.hr && mp.my_attendance && mp.my_attendance.holiday_list) {
 		parts.push(section(`My attendance · ${_esc(mp.my_attendance.month || "this month")}`, attCard(mp.my_attendance, mp.my_checkins)));
 	}
 
@@ -475,12 +475,29 @@ function attCard(att, checkins) {
 }
 
 function hrSection(hr) {
-	const hc = (hr.headcount || []).map((h) => `<span class="hc"><b>${_int(h.n)}</b> ${_esc((h.company || "").replace(/ (LLC|Accounting|Auditing).*$/i, "").trim() || h.company)}</span>`).join("");
+	const shortco = (c) => _esc((c || "").replace("Saif Chartered Accountants LLC- Dubai", "Saif — Dubai")
+		.replace("SGA World Auditing Accounting LLC - Abu Dhabi", "SGA — Abu Dhabi")
+		.replace("SGA World Auditing Accounting LLC SPC-Dubai", "SGA — SPC Dubai")
+		.replace("T K Chandy & Associates", "T K Chandy (India)"));
+	const nz = (v) => (!v ? '<span class="z">0</span>' : String(v));
+	const hc = (hr.headcount || []).map((h) => `<span class="hc">${shortco(h.company)} · <b>${_int(h.n)}</b></span>`).join("");
 	const ol = (hr.on_leave || []).map((x) =>
-		`<div class="sga-qrow"><span>${_esc(x.label)} · ${_esc(x.leave_type)}</span><span class="t">till ${_esc(fmtDate(x.to_date))}</span></div>`).join("") || '<div class="sga-empty">Nobody on leave today</div>';
-	const rows = (hr.team_leave || []).map((e) =>
-		`<tr><td>${_esc(e.employee_name)}</td><td class="mut">${_esc((e.company || "").split(" ").slice(0, 2).join(" "))}</td><td class="num">${e.annual}</td><td class="num">${e.sick}</td><td class="num">${e.casual}</td></tr>`).join("");
-	const table = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Annual/Earned</th><th class="num">Sick</th><th class="num">Casual</th></tr></thead><tbody>${rows}</tbody></table>`;
+		`<div class="sga-qrow"><span>${_esc(x.label)} · ${_esc(x.leave_type)}</span><span class="t">till ${_esc(fmtDate(x.to_date))}</span></div>`).join("") || '<div class="sga-empty">Nobody on leave today ✓</div>';
+
+	// leave balances table
+	const lrows = (hr.team_leave || []).map((e) => {
+		const total = (e.annual || 0) + (e.sick || 0) + (e.casual || 0) + (e.legacy || 0);
+		return `<tr><td>${_esc(e.employee_name)}</td><td class="mut">${shortco(e.company)}</td>
+		  <td class="num">${nz(e.annual)}</td><td class="num">${nz(e.sick)}</td><td class="num">${nz(e.casual)}</td><td class="num">${nz(e.legacy)}</td><td class="num tot">${total}</td></tr>`;
+	}).join("");
+	const ltable = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Annual / Earned</th><th class="num">Sick</th><th class="num">Casual</th><th class="num">Legacy</th><th class="num">Total left</th></tr></thead><tbody>${lrows}</tbody></table>`;
+
+	// attendance table
+	const arows = (hr.team_attendance || []).map((e) =>
+		`<tr><td>${_esc(e.employee_name)}</td><td class="mut">${shortco(e.company)}</td>
+		  <td class="num">${nz(e.present)}</td><td class="num">${nz(e.absent)}</td><td class="num">${nz(e.on_leave)}</td><td class="num">${nz(e.holidays)}</td><td class="num tot">${e.working_days}</td></tr>`).join("");
+	const atable = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Present</th><th class="num">Absent</th><th class="num">On&nbsp;Leave</th><th class="num">Holidays</th><th class="num">Working&nbsp;days</th></tr></thead><tbody>${arows}</tbody></table>`;
+
 	return `<div class="sga-hc"><span class="hc total"><b>${_int(hr.active)}</b> active staff</span>${hc}</div>
 	<div class="sga-grid k2" style="margin-top:14px">
 	  <div class="sga-card"><div class="sga-qtitle">On leave today</div><div class="sga-qlist">${ol}</div></div>
@@ -491,7 +508,10 @@ function hrSection(hr) {
 	    ${shortcut("Leave Applications", "", "/app/leave-application", "small-file")}
 	  </div></div>
 	</div>
-	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team leave balances · all staff</div><div class="sga-tblwrap">${table}</div></div>`;
+	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team leave balances · days remaining in 2026</div><div class="sga-tblwrap">${ltable}</div>
+	  <div class="sga-attnote">Casual applies to India (T K Chandy) staff · <b>Legacy</b> = leave carried over from before this system.</div></div>
+	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team attendance · ${_esc(hr.month || "this month")}</div><div class="sga-tblwrap">${atable}</div>
+	  <div class="sga-attnote">Sundays &amp; public holidays excluded (each staff on their own UAE / India calendar).</div></div>`;
 }
 
 // ---------- styles ----------
@@ -618,6 +638,8 @@ function inject_styles() {
 .sga-tbl td.mut{color:var(--sga-muted)}
 .sga-tbl td.num,.sga-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
 .sga-tbl tbody tr:hover td{background:var(--sga-surface2)}
+.sga-tbl td .z{color:var(--sga-muted)}
+.sga-tbl td.tot{font-weight:700}
 .sga-foot{margin-top:26px;text-align:center;color:var(--sga-muted);font-size:12px}
 `;
 	const s = document.createElement("style");

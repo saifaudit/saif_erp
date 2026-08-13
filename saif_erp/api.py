@@ -30,6 +30,16 @@ def _hr_overview():
 		from `tabLeave Application` la join `tabEmployee` e on e.name = la.employee
 		where la.docstatus=1 and la.status='Approved' and la.from_date <= %s and la.to_date >= %s
 		order by la.to_date""", (tdy, tdy), as_dict=True)
+	# current + upcoming approved leaves, with clash detection (overlapping staff)
+	upcoming = frappe.db.sql(
+		"""select e.employee_name label, la.employee emp, la.leave_type, la.from_date, la.to_date, la.total_leave_days days
+		from `tabLeave Application` la join `tabEmployee` e on e.name = la.employee
+		where la.docstatus=1 and la.status='Approved' and la.to_date >= %s
+		order by la.from_date limit 30""", (tdy,), as_dict=True)
+	for u in upcoming:
+		others = {v["emp"] for v in upcoming if v["emp"] != u["emp"]
+		          and v["from_date"] <= u["to_date"] and v["to_date"] >= u["from_date"]}
+		u["clash"] = len(others)
 	# per-employee leave balances (Annual/Earned, Sick, Casual, Legacy = carried-over)
 	lts = ["Annual Leave", "Earned Leave", "Sick Leave (Medical Certificate)", "Casual Leave", "Legacy Leave"]
 	rows = frappe.db.sql(
@@ -58,8 +68,8 @@ def _hr_overview():
 		                        "on_leave": a.get("On Leave", 0), "holidays": a.get("holidays", 0),
 		                        "working_days": a.get("working_days", 0)})
 	month = frappe.utils.getdate(frappe.utils.today()).strftime("%B %Y")
-	return {"active": active, "headcount": headcount, "on_leave": on_leave, "team_leave": team_leave,
-	        "team_attendance": team_attendance, "month": month}
+	return {"active": active, "headcount": headcount, "on_leave": on_leave, "upcoming": upcoming,
+	        "team_leave": team_leave, "team_attendance": team_attendance, "month": month}
 
 
 def _attendance_for(emp):

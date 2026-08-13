@@ -177,14 +177,6 @@ function render($root, d, actions) {
 	  </div>
 	</div>`));
 
-	// trends: revenue (invoiced vs collected) + throughput (created vs finished)
-	parts.push(section("Revenue · invoiced vs collected", `<div class="sga-card">${trend2(d.rev_trend, [
-		{ key: "inv", label: "Invoiced", color: "var(--sga-brand)" },
-		{ key: "paid", label: "Collected", color: "var(--sga-accent)" }])}</div>`, true));
-	parts.push(section("Throughput · created vs finished", `<div class="sga-card">${trend2(d.throughput, [
-		{ key: "created", label: "Created", color: "var(--sga-slate2)" },
-		{ key: "finished", label: "Finished", color: "var(--sga-good)" }])}</div>`, true));
-
 	// proposals funnel (full width)
 	const p = d.proposals || {};
 	const conv = p.total ? Math.round((p.converted / p.total) * 100) : 0;
@@ -501,6 +493,14 @@ function hrSection(hr) {
 		  ${attCell(e, "Present", e.present)}${attCell(e, "Absent", e.absent)}${attCell(e, "On Leave", e.on_leave)}<td class="num">${nz(e.holidays)}</td><td class="num tot">${e.working_days}</td></tr>`).join("");
 	const atable = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Present</th><th class="num">Absent</th><th class="num">On&nbsp;Leave</th><th class="num">Holidays</th><th class="num">Working&nbsp;days</th></tr></thead><tbody>${arows}</tbody></table>`;
 
+	// upcoming & current leave + clash detection
+	const urows = (hr.upcoming || []).map((u) => {
+		const clash = u.clash > 0 ? `<span class="sga-chip bad">${u.clash} overlap${u.clash > 1 ? "s" : ""}</span>` : '<span class="z">—</span>';
+		return `<tr class="${u.clash > 0 ? "clashrow" : ""}"><td>${_esc(u.label)}</td><td class="mut">${_esc(u.leave_type)}</td>
+		  <td class="mut">${_esc(fmtDate(u.from_date))} – ${_esc(fmtDate(u.to_date))}</td><td class="num">${u.days}</td><td>${clash}</td></tr>`;
+	}).join("") || '<tr><td colspan="5" class="sga-empty">No upcoming approved leave</td></tr>';
+	const utable = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Leave type</th><th>Dates</th><th class="num">Days</th><th>Clash</th></tr></thead><tbody>${urows}</tbody></table>`;
+
 	return `<div class="sga-hc"><span class="hc total"><b>${_int(hr.active)}</b> active staff</span>${hc}</div>
 	<div class="sga-grid k2" style="margin-top:14px">
 	  <div class="sga-card"><div class="sga-qtitle">On leave today</div><div class="sga-qlist">${ol}</div></div>
@@ -511,6 +511,8 @@ function hrSection(hr) {
 	    ${shortcut("Leave Applications", "", "/app/leave-application", "small-file")}
 	  </div></div>
 	</div>
+	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Upcoming &amp; current leave · clash check</div><div class="sga-tblwrap">${utable}</div>
+	  <div class="sga-attnote"><b>Clash</b> = other staff on approved leave at the same time — check before approving overlapping days.</div></div>
 	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team leave balances · days remaining in 2026</div><div class="sga-tblwrap">${ltable}</div>
 	  <div class="sga-attnote">Casual applies to India (T K Chandy) staff · <b>Legacy</b> = leave carried over from before this system.</div></div>
 	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team attendance · ${_esc(hr.month || "this month")}</div><div class="sga-tblwrap">${atable}</div>
@@ -643,6 +645,7 @@ function inject_styles() {
 .sga-tbl tbody tr:hover td{background:var(--sga-surface2)}
 .sga-tbl td .z{color:var(--sga-muted)}
 .sga-tbl td.tot{font-weight:700}
+.sga-tbl tr.clashrow td{background:color-mix(in srgb,var(--sga-bad) 8%,transparent)}
 .sga-tbl a.tlnk{color:inherit;border-bottom:1px dotted var(--sga-line)}
 .sga-tbl a.tlnk:hover{color:var(--sga-brand);border-bottom-color:var(--sga-brand)}
 .sga-tbl td.num a.tlnk{border-bottom:0}.sga-tbl td.num a.tlnk:hover{text-decoration:underline}

@@ -288,4 +288,6 @@ fixtures = [
 		# Leave (custom SAIF cards; Attendance + Employees-on-Leave are HRMS defaults, not shipped)
 		"Leave Application", "Leave Application -Total2", "Leave Application-Rejected",
 	]]]},
+	# SAIF dashboard workspace
+	{"doctype": "Workspace", "filters": [["name", "=", "Admin Dash"]]},
 ]

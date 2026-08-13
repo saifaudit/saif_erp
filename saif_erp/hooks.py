@@ -256,3 +256,25 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+
+# ------------------------------------------------------------------
+# SAIF ERP — Job Order redesign
+# ------------------------------------------------------------------
+
+# Business logic ported from DB Server Scripts into app code
+doc_events = {
+	"Job Order": {
+		"on_update": "saif_erp.job_order.sync_approval_status",
+		"on_update_after_submit": "saif_erp.job_order.sync_approval_status",
+	},
+}
+
+# Migratable customizations (exported via `bench export-fixtures`)
+fixtures = [
+	{"doctype": "Workflow", "filters": [["name", "=", "Job Order Approval"]]},
+	{"doctype": "Workflow State", "filters": [["name", "in", ["Draft", "Pending Approval", "Approved", "Rejected"]]]},
+	{"doctype": "Workflow Action Master", "filters": [["name", "in", ["Request Approval", "Approve", "Reject"]]]},
+	{"doctype": "Custom Field", "filters": [["name", "=", "Job Order-workflow_state"]]},
+	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Job Order"], ["field_name", "=", "job_status"], ["property", "=", "options"]]},
+]

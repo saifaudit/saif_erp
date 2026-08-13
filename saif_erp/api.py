@@ -68,6 +68,9 @@ def _hr_overview(att_month=None):
 		elif r.lt == "Legacy Leave":
 			d["legacy"] = r.bal
 	team_leave = sorted(bymap.values(), key=lambda x: (x["company"] or "", x["employee_name"]))
+	# legacy from the register (source of truth), not the broken allocation
+	for d in team_leave:
+		d["legacy"] = _legacy_balance(d["emp"])
 	# team attendance this month (holiday-aware, per employee)
 	team_attendance = []
 	month_label = frappe.utils.getdate(att_month + "-01").strftime("%B %Y")
@@ -124,6 +127,20 @@ def _attendance_for(emp, month=None):
 	        "holiday_list": emp_hl, "month": label}
 
 
+def _legacy_balance(emp):
+	"""Legacy (carried-over) leave balance from the custom Legacy Leave Register —
+	the source of truth. Legacy is tracked in the register, not via allocations,
+	so we read the closing balance rather than the (broken) Leave Allocation."""
+	if not emp:
+		return 0
+	r = frappe.db.get_value("Legacy Leave Register", {"employee": emp},
+	                        ["balance_legacy_leaves", "closing_balance_2025"], as_dict=True)
+	if not r:
+		return 0
+	val = r.get("balance_legacy_leaves") or r.get("closing_balance_2025") or 0
+	return max(0, val)  # a negative register balance is a source-data error; show 0 available
+
+
 def _personal(emp):
 	"""Personal leave balance + holiday-aware attendance for one employee.
 	Used by both the staff 'My Work' view and the manager's own card."""
@@ -140,6 +157,11 @@ def _personal(emp):
 		group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
 		(emp, yend), as_dict=True,
 	)
+	# legacy from the register (source of truth), not the ledger
+	legbal = _legacy_balance(emp)
+	my_leave = [r for r in my_leave if r["leave_type"] != "Legacy Leave"]
+	if legbal:
+		my_leave.append({"leave_type": "Legacy Leave", "allocated": legbal, "taken": 0, "balance": legbal})
 	my_attendance = _attendance_for(emp)
 	my_checkins = frappe.get_all(
 		"Employee Checkin", filters={"employee": emp},

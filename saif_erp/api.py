@@ -8,10 +8,46 @@ MANAGEMENT_ROLES = {
 	"System Manager", "Job Order Admin", "Job Order Admin Support",
 	"Job Order Partner", "Job Order Semi Admin",
 }
+HR_ROLES = {"System Manager", "HR Manager", "HR User"}
 
 
 def _is_manager():
 	return bool(MANAGEMENT_ROLES & set(frappe.get_roles()))
+
+
+def _is_hr():
+	return bool(HR_ROLES & set(frappe.get_roles()))
+
+
+def _hr_overview():
+	"""Firm-wide HR snapshot for admins who may see all employee records."""
+	tdy = frappe.utils.today()
+	active = frappe.db.count("Employee", {"status": "Active"})
+	headcount = frappe.db.sql(
+		"select company, count(*) n from `tabEmployee` where status='Active' group by company order by n desc", as_dict=True)
+	on_leave = frappe.db.sql(
+		"""select e.employee_name label, la.leave_type, la.from_date, la.to_date
+		from `tabLeave Application` la join `tabEmployee` e on e.name = la.employee
+		where la.docstatus=1 and la.status='Approved' and la.from_date <= %s and la.to_date >= %s
+		order by la.to_date""", (tdy, tdy), as_dict=True)
+	# per-employee leave balances (Annual/Earned, Sick, Casual)
+	lts = ["Annual Leave", "Earned Leave", "Sick Leave (Medical Certificate)", "Casual Leave"]
+	rows = frappe.db.sql(
+		"""select e.name emp, e.employee_name nm, e.company co, lle.leave_type lt, round(sum(lle.leaves),1) bal
+		from `tabLeave Ledger Entry` lle join `tabEmployee` e on e.name = lle.employee
+		where e.status='Active' and lle.docstatus=1 and lle.leave_type in %(lts)s
+		group by e.name, lle.leave_type""", {"lts": tuple(lts)}, as_dict=True)
+	bymap = {}
+	for r in rows:
+		d = bymap.setdefault(r.emp, {"employee_name": r.nm, "company": r.co, "annual": 0, "sick": 0, "casual": 0})
+		if r.lt in ("Annual Leave", "Earned Leave"):
+			d["annual"] = r.bal
+		elif "Sick" in r.lt:
+			d["sick"] = r.bal
+		elif r.lt == "Casual Leave":
+			d["casual"] = r.bal
+	team_leave = sorted(bymap.values(), key=lambda x: x["employee_name"])
+	return {"active": active, "headcount": headcount, "on_leave": on_leave, "team_leave": team_leave}
 
 
 def _personal(emp):
@@ -307,5 +343,6 @@ def dashboard_data(period="year", company=None):
 		"compliance": compliance, "turnaround": turnaround,
 		"companies": companies, "company": comp,
 		"me_personal": _personal(frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")),
+		"hr": _hr_overview() if _is_hr() else None,
 		"recent": {"open": recent("Open"), "progress": recent("Progress"), "finished": recent("Finished")},
 	}

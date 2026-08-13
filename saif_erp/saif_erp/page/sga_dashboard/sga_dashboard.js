@@ -40,6 +40,7 @@ function joHref(params) {
 }
 const listHref = (dt, params) => "/app/" + dt + "/view/list" + (params && Object.keys(params).length ? "?" + Object.entries(params).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&") : "");
 const fmtDT = (t) => { if (!t) return ""; try { return moment(t).format("ddd D MMM · h:mm A"); } catch (e) { return _rel(t); } };
+const fmtDate = (t) => { if (!t) return ""; try { return moment(t).format("D MMM"); } catch (e) { return String(t); } };
 
 const STATUS_META = {
 	Open: { c: "var(--sga-brand-soft)", l: "Open" },
@@ -202,6 +203,11 @@ function render($root, d, actions) {
 	    ${d.orphan_active ? `<div class="sga-warn">⚠ ${_int(d.orphan_active)} active job orders still assigned to former staff — needs reassignment.</div>` : ""}</div>
 	  <div class="sga-card">${hbars((d.top_customers || []).map((c) => ({ label: c.label, value: c.value, cust: c.cust })), "var(--sga-brand)", "Top customers · by job count", (r) => joHref({ customer: r.cust }))}</div>
 	</div>`));
+
+	// HR / all-employee overview (only for HR-privileged admins)
+	if (d.hr) {
+		parts.push(section("Team & HR · all employees", hrSection(d.hr)));
+	}
 
 	// the manager is also an employee — show their own attendance
 	const mp = d.me_personal || {};
@@ -468,6 +474,26 @@ function attCard(att, checkins) {
 	</div>`;
 }
 
+function hrSection(hr) {
+	const hc = (hr.headcount || []).map((h) => `<span class="hc"><b>${_int(h.n)}</b> ${_esc((h.company || "").replace(/ (LLC|Accounting|Auditing).*$/i, "").trim() || h.company)}</span>`).join("");
+	const ol = (hr.on_leave || []).map((x) =>
+		`<div class="sga-qrow"><span>${_esc(x.label)} · ${_esc(x.leave_type)}</span><span class="t">till ${_esc(fmtDate(x.to_date))}</span></div>`).join("") || '<div class="sga-empty">Nobody on leave today</div>';
+	const rows = (hr.team_leave || []).map((e) =>
+		`<tr><td>${_esc(e.employee_name)}</td><td class="mut">${_esc((e.company || "").split(" ").slice(0, 2).join(" "))}</td><td class="num">${e.annual}</td><td class="num">${e.sick}</td><td class="num">${e.casual}</td></tr>`).join("");
+	const table = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Annual/Earned</th><th class="num">Sick</th><th class="num">Casual</th></tr></thead><tbody>${rows}</tbody></table>`;
+	return `<div class="sga-hc"><span class="hc total"><b>${_int(hr.active)}</b> active staff</span>${hc}</div>
+	<div class="sga-grid k2" style="margin-top:14px">
+	  <div class="sga-card"><div class="sga-qtitle">On leave today</div><div class="sga-qlist">${ol}</div></div>
+	  <div class="sga-card"><div class="sga-qtitle">Quick HR links</div><div class="sga-links">
+	    ${shortcut("All Employees", `${_int(hr.active)}`, "/app/employee", "users")}
+	    ${shortcut("Leave Balance Report", "", "/app/query-report/SGA Employee Leave Balance", "small-file")}
+	    ${shortcut("Attendance", "", "/app/attendance", "calendar")}
+	    ${shortcut("Leave Applications", "", "/app/leave-application", "small-file")}
+	  </div></div>
+	</div>
+	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team leave balances · all staff</div><div class="sga-tblwrap">${table}</div></div>`;
+}
+
 // ---------- styles ----------
 function inject_styles() {
 	if (document.getElementById("sga-dash-style")) return;
@@ -581,6 +607,17 @@ function inject_styles() {
 .hbar.lnk:hover .lab{color:var(--sga-brand)}.hbar.lnk:hover .track{outline:1px solid var(--sga-brand);outline-offset:1px;border-radius:5px}
 .sga-legend .li.lnk:hover .lab{color:var(--sga-brand)}
 .sga-ctx a.c.lnk:hover .n{color:var(--sga-brand)}
+.sga-hc{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.sga-hc .hc{font-size:12.5px;color:var(--sga-ink2);background:var(--sga-surface);border:1px solid var(--sga-line);border-radius:999px;padding:5px 12px}
+.sga-hc .hc.total{background:var(--sga-brand);color:#fff;border-color:var(--sga-brand)}
+.sga-hc .hc b{font-weight:700}
+.sga-tblwrap{overflow-x:auto}
+.sga-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.sga-tbl th{text-align:left;color:var(--sga-muted);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;padding:7px 8px;border-bottom:1px solid var(--sga-line);white-space:nowrap}
+.sga-tbl td{padding:7px 8px;border-bottom:1px solid var(--sga-line)}
+.sga-tbl td.mut{color:var(--sga-muted)}
+.sga-tbl td.num,.sga-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+.sga-tbl tbody tr:hover td{background:var(--sga-surface2)}
 .sga-foot{margin-top:26px;text-align:center;color:var(--sga-muted);font-size:12px}
 `;
 	const s = document.createElement("style");

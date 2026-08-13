@@ -99,14 +99,37 @@ def dashboard_data(period="year", company=None):
 				group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
 				emp, as_dict=True,
 			)
-			month_start = frappe.utils.get_first_day(frappe.utils.today())
-			my_attendance = {r["v"]: r["c"] for r in frappe.db.sql(
-				"select status v, count(*) c from `tabAttendance` where employee=%s and attendance_date>=%s and docstatus=1 group by status",
-				(emp, month_start), as_dict=True,
-			)}
+			from datetime import timedelta
+			month_start = frappe.utils.getdate(frappe.utils.get_first_day(frappe.utils.today()))
+			tdy = frappe.utils.getdate(frappe.utils.today())
+			# Off-days = weekly-off day-of-week (e.g. Sunday) + public holidays from the
+			# employee's holiday list. Public holidays are stored as Holiday rows; the
+			# weekly-off is only a setting, so we exclude it by weekday.
+			emp_hl = frappe.db.get_value("Employee", emp, "holiday_list")
+			holiday_dates, wo_idx = set(), None
+			if emp_hl:
+				weekly_off = frappe.db.get_value("Holiday List", emp_hl, "weekly_off")
+				wo_idx = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}.get(weekly_off)
+				holiday_dates = {frappe.utils.getdate(r[0]) for r in frappe.db.sql(
+					"select holiday_date from `tabHoliday` where parent=%s and holiday_date between %s and %s",
+					(emp_hl, month_start, tdy))}
+
+			def is_off(dt):
+				return dt in holiday_dates or (wo_idx is not None and dt.weekday() == wo_idx)
+
+			counts = {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0, "Work From Home": 0}
+			for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date>=%s and docstatus=1", (emp, month_start), as_dict=True):
+				# a weekly-off / public holiday marked 'Absent' is NOT a real absence
+				if r.status == "Absent" and is_off(frappe.utils.getdate(r.attendance_date)):
+					continue
+				counts[r.status] = counts.get(r.status, 0) + 1
+			elapsed = (tdy - month_start).days + 1
+			working_days = sum(1 for i in range(elapsed) if not is_off(month_start + timedelta(days=i)))
+			my_attendance = {**counts, "holidays": elapsed - working_days, "working_days": working_days,
+			                 "holiday_list": emp_hl, "month": tdy.strftime("%B %Y")}
 			my_checkins = frappe.get_all(
 				"Employee Checkin", filters={"employee": emp},
-				fields=["log_type", "time"], order_by="time desc", limit=6,
+				fields=["log_type", "time"], order_by="time desc", limit=8,
 			)
 		return {
 			"greeting": greeting, "manager": False, "my_status": my_status, "my_counts": my_counts,

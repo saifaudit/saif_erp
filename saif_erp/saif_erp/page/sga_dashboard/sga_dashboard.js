@@ -39,6 +39,7 @@ function joHref(params) {
 	return "/app/job-order/view/list?" + q.join("&");
 }
 const listHref = (dt, params) => "/app/" + dt + "/view/list" + (params && Object.keys(params).length ? "?" + Object.entries(params).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&") : "");
+const fmtDT = (t) => { if (!t) return ""; try { return moment(t).format("ddd D MMM · h:mm A"); } catch (e) { return _rel(t); } };
 
 const STATUS_META = {
 	Open: { c: "var(--sga-brand-soft)", l: "Open" },
@@ -268,15 +269,21 @@ function render_limited($root, d) {
 	  <div class="sga-card">${myleave(d.my_leave)}</div>
 	</div>`));
 
-	// my attendance this month + recent check-ins
+	// my attendance this month (Sundays + public holidays excluded) + recent check-ins
 	const att = d.my_attendance || {};
-	const attTiles = [["Present", "var(--sga-good)"], ["Absent", "var(--sga-bad)"], ["Half Day", "var(--sga-amber)"], ["On Leave", "var(--sga-slate2)"], ["Work From Home", "var(--sga-brand-soft)"]]
-		.filter(([k]) => att[k]).map(([k, c]) => `<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(att[k])}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">No attendance this month</div>';
-	const checkins = (d.my_checkins || []).map((c) =>
-		`<div class="sga-qrow"><span>${_esc(c.log_type || "")}</span><span class="t">${_esc(_rel(c.time))}</span></div>`).join("") || '<div class="sga-empty">No check-ins</div>';
-	parts.push(section("My attendance · this month", `<div class="sga-grid k2">
-	  <div class="sga-card"><div class="sga-qtitle">This month</div><div class="sga-stats sga-stats-sm">${attTiles}</div></div>
-	  <div class="sga-card"><div class="sga-qtitle">Recent check-ins</div><div class="sga-qlist">${checkins}</div></div>
+	const attDefs = [["Present", "var(--sga-good)", att.Present], ["Absent", "var(--sga-bad)", att.Absent],
+		["On Leave", "var(--sga-slate2)", att["On Leave"]], ["Half Day", "var(--sga-amber)", att["Half Day"]],
+		["WFH", "var(--sga-brand-soft)", att["Work From Home"]], ["Holidays", "var(--sga-slate)", att.holidays]];
+	const attTiles = attDefs.filter(([, , v]) => v).map(([k, c, v]) =>
+		`<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(v)}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">No attendance this month</div>';
+	const attNote = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;
+	const checkins = (d.my_checkins || []).map((c) => {
+		const io = (c.log_type || "").toUpperCase(), cls = io === "IN" ? "in" : "out";
+		return `<div class="sga-ci"><span class="io ${cls}">${_esc(io || "—")}</span><span class="tm">${_esc(fmtDT(c.time))}</span></div>`;
+	}).join("") || '<div class="sga-empty">No check-ins</div>';
+	parts.push(section(`My attendance · ${_esc(att.month || "this month")}`, `<div class="sga-grid k2">
+	  <div class="sga-card"><div class="sga-qtitle">Days this month</div><div class="sga-stats sga-stats-sm">${attTiles}</div>${attNote}</div>
+	  <div class="sga-card"><div class="sga-qtitle">Recent check-ins</div><div class="sga-cilist">${checkins}</div></div>
 	</div>`));
 
 	// quick actions
@@ -507,6 +514,14 @@ function inject_styles() {
 .sga-stat .dot{width:9px;height:9px;border-radius:50%;position:absolute;top:13px;right:12px}
 .sga-stat .v{font-size:22px;font-weight:700}.sga-stat .n{font-size:11.5px;color:var(--sga-muted);margin-top:2px;line-height:1.3}
 .sga-stats.sga-stats-sm{grid-template-columns:repeat(3,1fr)}@media(max-width:560px){.sga-stats.sga-stats-sm{grid-template-columns:repeat(2,1fr)}}
+.sga-attnote{margin-top:10px;font-size:11.5px;color:var(--sga-muted);line-height:1.5}
+.sga-cilist{display:flex;flex-direction:column;gap:2px}
+.sga-ci{display:flex;align-items:center;gap:11px;padding:7px 4px;border-top:1px solid var(--sga-line);font-size:13px}
+.sga-ci:first-child{border-top:0}
+.sga-ci .io{font-size:10px;font-weight:700;padding:2px 9px;border-radius:999px;letter-spacing:.05em;min-width:40px;text-align:center}
+.sga-ci .io.in{background:color-mix(in srgb,var(--sga-good) 16%,transparent);color:var(--sga-good)}
+.sga-ci .io.out{background:color-mix(in srgb,var(--sga-slate) 20%,transparent);color:var(--sga-slate2)}
+.sga-ci .tm{color:var(--sga-ink2)}
 .sga-donwrap{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
 .sga-donut{--s:158px;width:var(--s);height:var(--s);flex:0 0 var(--s);border-radius:50%;position:relative;
  -webkit-mask:radial-gradient(circle at center,transparent 47px,#000 48px);mask:radial-gradient(circle at center,transparent 47px,#000 48px)}

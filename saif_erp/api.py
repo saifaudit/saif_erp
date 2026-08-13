@@ -47,12 +47,39 @@ def dashboard_data(period="year"):
 	}
 
 	if not manager:
-		# limited payload: header + own recent job orders
-		mine = frappe.get_all(
-			"Job Order", filters={"accountant": frappe.session.user},
-			fields=["name", "job_status", "modified"], order_by="modified desc", limit=8,
+		# personal "My Work" payload — everything scoped to the signed-in user
+		me = frappe.session.user
+		my_status = {r["v"]: r["c"] for r in frappe.db.sql(
+			f"select job_status v, count(*) c from {jo} where accountant=%s and docstatus=1 group by job_status",
+			me, as_dict=True,
+		)}
+		active = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending"]
+		my_counts = {
+			"active": sum(my_status.get(s, 0) for s in active),
+			"open": my_status.get("Open", 0),
+			"finished": my_status.get("Finished", 0),
+			"attention": my_status.get("Awaiting Client Data", 0) + my_status.get("Temporarily stopped", 0),
+		}
+		recent = frappe.get_all(
+			"Job Order", filters={"accountant": me},
+			fields=["name", "customer", "job_status", "modified"], order_by="modified desc", limit=10,
 		)
-		return {"greeting": greeting, "manager": False, "recent_mine": mine}
+		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
+		my_leave = []
+		if emp:
+			my_leave = frappe.db.sql(
+				"""select leave_type,
+					sum(case when transaction_type='Leave Allocation' and is_expired=0 and leaves>0 then leaves else 0 end) allocated,
+					-1*sum(case when transaction_type='Leave Application' then leaves else 0 end) taken,
+					sum(leaves) balance
+				from `tabLeave Ledger Entry` where employee=%s and docstatus=1
+				group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
+				emp, as_dict=True,
+			)
+		return {
+			"greeting": greeting, "manager": False, "my_status": my_status,
+			"my_counts": my_counts, "recent_mine": recent, "my_leave": my_leave,
+		}
 
 	def kv(rows):
 		return {r["v"]: r["c"] for r in rows}

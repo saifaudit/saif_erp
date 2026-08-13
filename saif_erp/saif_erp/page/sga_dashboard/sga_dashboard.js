@@ -184,14 +184,51 @@ function render($root, d, setPeriod) {
 
 function render_limited($root, d) {
 	const g = d.greeting || {};
-	const rows = (d.recent_mine || []).map((r) =>
-		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}"><span>${_esc(r.name)}</span><span class="t">${_esc(r.job_status || "")}</span></a>`).join("") || '<div class="sga-empty">No job orders assigned to you.</div>';
-	$root.html(`
+	const mc = d.my_counts || {}, ms = d.my_status || {};
+	const parts = [];
+
+	parts.push(`
 	<div class="sga-head"><div class="sga-brand"><div class="sga-logo"><img src="${_esc(g.logo || "/files/logoonly200x200.png")}" alt="SGA"></div>
-	  <div><div class="sga-bname">${_esc(GROUP_NAME)}</div><div class="sga-bsub">My Job Orders</div></div></div>
+	  <div><div class="sga-bname">${_esc(GROUP_NAME)}</div><div class="sga-bsub">My Work</div></div></div>
 	  <div class="sga-greet"><div class="gtext"><div class="g1">${_esc(g.employee_name || g.full_name || "")}</div>
-	  <div class="g2">${_esc([g.designation, g.company].filter(Boolean).join(" · "))}</div></div>${avatar(g)}</div></div>
-	${section("My recent job orders", `<div class="sga-card"><div class="sga-qlist">${rows}</div></div>`)}`);
+	  <div class="g2">${_esc([g.designation, g.company].filter(Boolean).join(" · "))}</div></div>${avatar(g)}</div></div>`);
+
+	parts.push(section("My work at a glance", `<div class="sga-grid k4">
+	  ${kpi("My active jobs", _int(mc.active), "In progress right now", "var(--sga-brand)")}
+	  ${kpi("Open", _int(mc.open), "Not yet started", "var(--sga-brand-soft)")}
+	  ${kpi("Finished", _int(mc.finished), "Completed by me", "var(--sga-accent)")}
+	  ${kpi("Needs attention", _int(mc.attention), `<span class="sga-chip warn">Awaiting data / on hold</span>`, "var(--sga-amber)")}
+	</div>`));
+
+	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
+	const tiles = order.filter((s) => ms[s] != null).map((s) => {
+		const m = STATUS_META[s] || { c: "var(--sga-slate)", l: s };
+		return `<div class="sga-stat"><span class="dot" style="background:${m.c}"></span><div class="v">${_int(ms[s])}</div><div class="n">${_esc(m.l)}</div></div>`;
+	}).join("") || '<div class="sga-empty">No job orders assigned to you yet.</div>';
+	parts.push(section("My job status", `<div class="sga-stats">${tiles}</div>`));
+
+	const rows = (d.recent_mine || []).map((r) =>
+		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}"><span>${_esc(r.name)} · ${_esc(r.job_status || "")}</span><span class="t">${_esc(_rel(r.modified))}</span></a>`).join("") || '<div class="sga-empty">None</div>';
+	parts.push(section("My recent jobs & leave", `<div class="sga-grid k2">
+	  <div class="sga-card"><div class="sga-qtitle">Recent job orders</div><div class="sga-qlist">${rows}</div></div>
+	  <div class="sga-card">${myleave(d.my_leave)}</div>
+	</div>`));
+
+	parts.push(`<div class="sga-foot">Your personal view · figures cover only your own job orders</div>`);
+	$root.html(parts.join(""));
+}
+
+function myleave(rows) {
+	rows = rows || [];
+	if (!rows.length) return `<div class="sga-qtitle">My leave balance</div><div class="sga-empty">No leave allocation found.</div>`;
+	const body = rows.map((r) => {
+		const bal = Number(r.balance || 0), alloc = Number(r.allocated || 0);
+		const pct = alloc > 0 ? Math.max(0, Math.min(100, (bal / alloc) * 100)) : 0;
+		return `<div class="hbar"><div class="top"><span class="lab">${_esc(r.leave_type)}</span>
+		  <span class="val">${bal.toFixed(1)} <span style="color:var(--sga-muted);font-weight:500">/ ${alloc.toFixed(0)} left</span></span></div>
+		  <div class="track"><i style="width:${pct}%;background:var(--sga-good)"></i></div></div>`;
+	}).join("");
+	return `<div class="sga-qtitle">My leave balance</div><div class="sga-hbars">${body}</div>`;
 }
 
 // ---------- fragment builders ----------

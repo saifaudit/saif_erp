@@ -285,5 +285,7 @@ fixtures = [
 		"Paid", "Payment status Partial", "Payment status Pending", "Payment status Hold Despute",
 		# Proposal / Quotation
 		"Total Proposals", "Proposal to JB", "Proposal waiting for client approval", "waiting for Job Order",
+		# Leave (custom SAIF cards; Attendance + Employees-on-Leave are HRMS defaults, not shipped)
+		"Leave Application", "Leave Application -Total2", "Leave Application-Rejected",
 	]]]},
 ]

@@ -203,6 +203,12 @@ function render($root, d, actions) {
 	  <div class="sga-card">${hbars((d.top_customers || []).map((c) => ({ label: c.label, value: c.value, cust: c.cust })), "var(--sga-brand)", "Top customers · by job count", (r) => joHref({ customer: r.cust }))}</div>
 	</div>`));
 
+	// the manager is also an employee — show their own attendance
+	const mp = d.me_personal || {};
+	if (mp.my_attendance && mp.my_attendance.holiday_list) {
+		parts.push(section(`My attendance · ${_esc(mp.my_attendance.month || "this month")}`, attCard(mp.my_attendance, mp.my_checkins)));
+	}
+
 	parts.push(`<div class="sga-foot">SGA Job Orders dashboard · figures live from this site · financials = ${_esc(money.period_label || "This year")}</div>`);
 	$root.html(parts.join(""));
 	$root.find(".sga-period button").on("click", function () {
@@ -271,21 +277,7 @@ function render_limited($root, d) {
 
 	// my attendance this month (Sundays + public holidays excluded) + recent check-ins
 	const att = d.my_attendance || {};
-	const attDefs = [
-		["Present", "var(--sga-good)", att.Present, true], ["Absent", "var(--sga-bad)", att.Absent, true],
-		["On Leave", "var(--sga-slate2)", att["On Leave"], false], ["Half Day", "var(--sga-amber)", att["Half Day"], false],
-		["WFH", "var(--sga-brand-soft)", att["Work From Home"], false], ["Holidays", "var(--sga-slate)", att.holidays, true]];
-	const attTiles = attDefs.filter(([, , v, always]) => always || v).map(([k, c, v]) =>
-		`<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(v || 0)}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">No attendance this month</div>';
-	const attNote = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;
-	const checkins = (d.my_checkins || []).map((c) => {
-		const io = (c.log_type || "").toUpperCase(), cls = io === "IN" ? "in" : "out";
-		return `<div class="sga-ci"><span class="io ${cls}">${_esc(io || "—")}</span><span class="tm">${_esc(fmtDT(c.time))}</span></div>`;
-	}).join("") || '<div class="sga-empty">No check-ins</div>';
-	parts.push(section(`My attendance · ${_esc(att.month || "this month")}`, `<div class="sga-grid k2">
-	  <div class="sga-card"><div class="sga-qtitle">Days this month</div><div class="sga-stats sga-stats-sm">${attTiles}</div>${attNote}</div>
-	  <div class="sga-card"><div class="sga-qtitle">Recent check-ins</div><div class="sga-cilist">${checkins}</div></div>
-	</div>`));
+	parts.push(section(`My attendance · ${_esc(att.month || "this month")}`, attCard(att, d.my_checkins)));
 
 	// quick actions
 	parts.push(section("Quick actions", `<div class="sga-card"><div class="sga-links">
@@ -455,6 +447,25 @@ function compliance_section(d) {
 	  ${kpi("LOE received", loe + "%", `${_int(c.loe || 0)} of ${_int(c.total || 0)} jobs`, "var(--sga-good)", loe)}
 	  ${kpi("Working papers", _int(c.wp_pending || 0) + " pending", `of ${_int(c.wp_applicable || 0)} due since May 2026`, wpColor)}
 	</div></div>`;
+}
+
+function attCard(att, checkins) {
+	att = att || {};
+	const attDefs = [
+		["Present", "var(--sga-good)", att.Present, true], ["Absent", "var(--sga-bad)", att.Absent, true],
+		["On Leave", "var(--sga-slate2)", att["On Leave"], false], ["Half Day", "var(--sga-amber)", att["Half Day"], false],
+		["WFH", "var(--sga-brand-soft)", att["Work From Home"], false], ["Holidays", "var(--sga-slate)", att.holidays, true]];
+	const tiles = attDefs.filter(([, , v, a]) => a || v).map(([k, c, v]) =>
+		`<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(v || 0)}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">No attendance this month</div>';
+	const note = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;
+	const ci = (checkins || []).map((c) => {
+		const io = (c.log_type || "").toUpperCase(), cls = io === "IN" ? "in" : "out";
+		return `<div class="sga-ci"><span class="io ${cls}">${_esc(io || "—")}</span><span class="tm">${_esc(fmtDT(c.time))}</span></div>`;
+	}).join("") || '<div class="sga-empty">No check-ins</div>';
+	return `<div class="sga-grid k2">
+	  <div class="sga-card"><div class="sga-qtitle">Days this month</div><div class="sga-stats sga-stats-sm">${tiles}</div>${note}</div>
+	  <div class="sga-card"><div class="sga-qtitle">Recent check-ins</div><div class="sga-cilist">${ci}</div></div>
+	</div>`;
 }
 
 // ---------- styles ----------

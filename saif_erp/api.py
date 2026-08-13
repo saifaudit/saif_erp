@@ -14,6 +14,56 @@ def _is_manager():
 	return bool(MANAGEMENT_ROLES & set(frappe.get_roles()))
 
 
+def _personal(emp):
+	"""Personal leave balance + holiday-aware attendance for one employee.
+	Used by both the staff 'My Work' view and the manager's own card."""
+	empty = {"my_leave": [], "my_attendance": {}, "my_checkins": []}
+	if not emp:
+		return empty
+	from datetime import timedelta
+
+	my_leave = frappe.db.sql(
+		"""select leave_type,
+			sum(case when transaction_type='Leave Allocation' and is_expired=0 and leaves>0 then leaves else 0 end) allocated,
+			-1*sum(case when transaction_type='Leave Application' then leaves else 0 end) taken,
+			sum(leaves) balance
+		from `tabLeave Ledger Entry` where employee=%s and docstatus=1
+		group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
+		emp, as_dict=True,
+	)
+	month_start = frappe.utils.getdate(frappe.utils.get_first_day(frappe.utils.today()))
+	tdy = frappe.utils.getdate(frappe.utils.today())
+	# Off-days = weekly-off day-of-week (e.g. Sunday) + public holidays from the
+	# employee's holiday list. Public holidays are Holiday rows; the weekly-off
+	# is only a setting, so we exclude it by weekday.
+	emp_hl = frappe.db.get_value("Employee", emp, "holiday_list")
+	holiday_dates, wo_idx = set(), None
+	if emp_hl:
+		weekly_off = frappe.db.get_value("Holiday List", emp_hl, "weekly_off")
+		wo_idx = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}.get(weekly_off)
+		holiday_dates = {frappe.utils.getdate(r[0]) for r in frappe.db.sql(
+			"select holiday_date from `tabHoliday` where parent=%s and holiday_date between %s and %s",
+			(emp_hl, month_start, tdy))}
+
+	def is_off(dt):
+		return dt in holiday_dates or (wo_idx is not None and dt.weekday() == wo_idx)
+
+	counts = {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0, "Work From Home": 0}
+	for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date>=%s and docstatus=1", (emp, month_start), as_dict=True):
+		if r.status == "Absent" and is_off(frappe.utils.getdate(r.attendance_date)):
+			continue
+		counts[r.status] = counts.get(r.status, 0) + 1
+	elapsed = (tdy - month_start).days + 1
+	working_days = sum(1 for i in range(elapsed) if not is_off(month_start + timedelta(days=i)))
+	my_attendance = {**counts, "holidays": elapsed - working_days, "working_days": working_days,
+	                 "holiday_list": emp_hl, "month": tdy.strftime("%B %Y")}
+	my_checkins = frappe.get_all(
+		"Employee Checkin", filters={"employee": emp},
+		fields=["log_type", "time"], order_by="time desc", limit=8,
+	)
+	return {"my_leave": my_leave, "my_attendance": my_attendance, "my_checkins": my_checkins}
+
+
 ACTIVE_STATUSES = "('Open','Progress','Under Review','Awaiting Client Data','Temporarily stopped','Pending')"
 
 
@@ -88,49 +138,8 @@ def dashboard_data(period="year", company=None):
 			{"me": me}, as_dict=True,
 		)
 		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
-		my_leave, my_attendance, my_checkins = [], {}, []
-		if emp:
-			my_leave = frappe.db.sql(
-				"""select leave_type,
-					sum(case when transaction_type='Leave Allocation' and is_expired=0 and leaves>0 then leaves else 0 end) allocated,
-					-1*sum(case when transaction_type='Leave Application' then leaves else 0 end) taken,
-					sum(leaves) balance
-				from `tabLeave Ledger Entry` where employee=%s and docstatus=1
-				group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
-				emp, as_dict=True,
-			)
-			from datetime import timedelta
-			month_start = frappe.utils.getdate(frappe.utils.get_first_day(frappe.utils.today()))
-			tdy = frappe.utils.getdate(frappe.utils.today())
-			# Off-days = weekly-off day-of-week (e.g. Sunday) + public holidays from the
-			# employee's holiday list. Public holidays are stored as Holiday rows; the
-			# weekly-off is only a setting, so we exclude it by weekday.
-			emp_hl = frappe.db.get_value("Employee", emp, "holiday_list")
-			holiday_dates, wo_idx = set(), None
-			if emp_hl:
-				weekly_off = frappe.db.get_value("Holiday List", emp_hl, "weekly_off")
-				wo_idx = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}.get(weekly_off)
-				holiday_dates = {frappe.utils.getdate(r[0]) for r in frappe.db.sql(
-					"select holiday_date from `tabHoliday` where parent=%s and holiday_date between %s and %s",
-					(emp_hl, month_start, tdy))}
-
-			def is_off(dt):
-				return dt in holiday_dates or (wo_idx is not None and dt.weekday() == wo_idx)
-
-			counts = {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0, "Work From Home": 0}
-			for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date>=%s and docstatus=1", (emp, month_start), as_dict=True):
-				# a weekly-off / public holiday marked 'Absent' is NOT a real absence
-				if r.status == "Absent" and is_off(frappe.utils.getdate(r.attendance_date)):
-					continue
-				counts[r.status] = counts.get(r.status, 0) + 1
-			elapsed = (tdy - month_start).days + 1
-			working_days = sum(1 for i in range(elapsed) if not is_off(month_start + timedelta(days=i)))
-			my_attendance = {**counts, "holidays": elapsed - working_days, "working_days": working_days,
-			                 "holiday_list": emp_hl, "month": tdy.strftime("%B %Y")}
-			my_checkins = frappe.get_all(
-				"Employee Checkin", filters={"employee": emp},
-				fields=["log_type", "time"], order_by="time desc", limit=8,
-			)
+		_p = _personal(emp)
+		my_leave, my_attendance, my_checkins = _p["my_leave"], _p["my_attendance"], _p["my_checkins"]
 		return {
 			"greeting": greeting, "manager": False, "my_status": my_status, "my_counts": my_counts,
 			"recent_mine": recent, "my_leave": my_leave, "my_action": my_action,
@@ -297,5 +306,6 @@ def dashboard_data(period="year", company=None):
 		"top_debtors": top_debtors, "rev_trend": rev_trend, "throughput": throughput,
 		"compliance": compliance, "turnaround": turnaround,
 		"companies": companies, "company": comp,
+		"me_personal": _personal(frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")),
 		"recent": {"open": recent("Open"), "progress": recent("Progress"), "finished": recent("Finished")},
 	}

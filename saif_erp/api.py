@@ -169,11 +169,11 @@ def dashboard_data(period="year", company=None):
 	# Current workload = ACTIVE job orders held by ACTIVE employees (excludes
 	# resigned/unlinked accountants so ex-staff don't appear).
 	by_accountant = frappe.db.sql(
-		f"""select e.employee_name label, count(*) value
+		f"""select e.employee_name label, jo.accountant user, count(*) value
 		from {jo} jo
 		inner join `tabEmployee` e on e.user_id = jo.accountant and e.status = 'Active'
 		where jo.docstatus = 1 and jo.job_status in {ACTIVE_STATUSES}{cw("jo")}
-		group by e.employee_name order by value desc limit 8""", as_dict=True,
+		group by jo.accountant, e.employee_name order by value desc limit 8""", as_dict=True,
 	)
 	# Data-hygiene: active jobs still assigned to non-active (resigned) staff.
 	orphan_active = frappe.db.sql(
@@ -210,7 +210,7 @@ def dashboard_data(period="year", company=None):
 		group by label order by label""", as_dict=True,
 	)
 	top_debtors = frappe.db.sql(
-		f"""select c.customer_name label, round(sum(jo.balance_amount)) value
+		f"""select c.customer_name label, jo.customer cust, round(sum(jo.balance_amount)) value
 		from {jo} jo left join `tabCustomer` c on c.name = jo.customer
 		where jo.docstatus=1 and jo.balance_amount > 0{cw("jo")}
 		group by jo.customer order by value desc limit 6""", as_dict=True,
@@ -218,7 +218,7 @@ def dashboard_data(period="year", company=None):
 
 	# Top customers by job count (+ revenue)
 	top_customers = frappe.db.sql(
-		f"""select c.customer_name label, count(*) value, round(sum(jo.invoiced_amount)) revenue
+		f"""select c.customer_name label, jo.customer cust, count(*) value, round(sum(jo.invoiced_amount)) revenue
 		from {jo} jo left join `tabCustomer` c on c.name = jo.customer
 		where jo.docstatus=1{cw("jo")} group by jo.customer order by value desc limit 6""", as_dict=True,
 	)

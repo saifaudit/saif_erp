@@ -30,6 +30,15 @@ const _esc = (s) => frappe.utils.escape_html(String(s == null ? "" : s));
 const _rel = (dt) => { if (!dt) return ""; try { return $(frappe.datetime.comment_when(dt)).text() || ""; } catch (e) { return frappe.datetime.str_to_user ? frappe.datetime.str_to_user(dt) : String(dt); } };
 const _money = (n) => { n = Number(n || 0); return n >= 1e6 ? "AED " + (n / 1e6).toFixed(2) + "M" : "AED " + Math.round(n / 1000) + "K"; };
 const _pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+// current filter scope for drill-down links (set per render)
+let _company = "", _myuser = "";
+function joHref(params) {
+	const q = Object.entries(params || {}).filter(([, v]) => v != null && v !== "").map(([k, v]) => k + "=" + encodeURIComponent(v));
+	if (_company) q.push("company=" + encodeURIComponent(_company));
+	if (_myuser) q.push("accountant=" + encodeURIComponent(_myuser));
+	return "/app/job-order/view/list?" + q.join("&");
+}
+const listHref = (dt, params) => "/app/" + dt + "/view/list" + (params && Object.keys(params).length ? "?" + Object.entries(params).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&") : "");
 
 const STATUS_META = {
 	Open: { c: "var(--sga-brand-soft)", l: "Open" },
@@ -65,6 +74,7 @@ function render($root, d, actions) {
 	const money = d.money || {};
 	const parts = [];
 	const period = money.period || "year";
+	_company = d.company || ""; _myuser = "";
 
 	// header
 	parts.push(`
@@ -85,11 +95,11 @@ function render($root, d, actions) {
 	  </div>
 	</div>
 	<div class="sga-ctx">
-	  ${ctx(d.counts.job_orders, "Job Orders")}
-	  ${ctx(d.counts.customers, "Customers")}
-	  ${ctx(d.counts.employees, "Active Staff")}
-	  ${ctx(d.counts.proposals, "Proposals")}
-	  ${ctx(d.counts.credentials, "Credentials")}
+	  ${ctx(d.counts.job_orders, "Job Orders", joHref({}))}
+	  ${ctx(d.counts.customers, "Customers", listHref("customer", {}))}
+	  ${ctx(d.counts.employees, "Active Staff", listHref("employee", { status: "Active" }))}
+	  ${ctx(d.counts.proposals, "Proposals", listHref("quotation", {}))}
+	  ${ctx(d.counts.credentials, "Credentials", listHref("credential-manager", {}))}
 	</div>`);
 
 	// company filter (group has multiple entities)
@@ -107,10 +117,10 @@ function render($root, d, actions) {
 	  <button data-p="all" class="${period === "all" ? "on" : ""}">All Time</button></div>`;
 	parts.push(`<div class="sga-sec"><div class="sga-eye"><h2>Financial snapshot · ${_esc(money.period_label || "This year")}</h2><span class="rule"></span>${toggle}</div>
 	<div class="sga-grid k4">
-	  ${kpi("Invoiced", _m(money.invoiced), `${money.period_label} · submitted job orders`, "var(--sga-brand)")}
-	  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate)}
-	  ${kpi("Outstanding", _m(money.outstanding), `<span class="sga-chip warn">Invoiced minus collected</span>`, "var(--sga-orange)")}
-	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished all‑time`, "var(--sga-accent)")}
+	  ${kpi("Invoiced", _m(money.invoiced), `${money.period_label} · submitted job orders`, "var(--sga-brand)", null, joHref({}))}
+	  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate, joHref({ payment_status: "Paid" }))}
+	  ${kpi("Outstanding", _m(money.outstanding), `<span class="sga-chip warn">Invoiced minus collected</span>`, "var(--sga-orange)", null, joHref({ payment_status: "Not Paid" }))}
+	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished all‑time`, "var(--sga-accent)", null, joHref({ job_status: "Progress" }))}
 	</div></div>`);
 
 	// Receivables aging
@@ -120,7 +130,7 @@ function render($root, d, actions) {
 	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
 	const tiles = order.filter((s) => d.job_status[s] != null).map((s) => {
 		const meta = STATUS_META[s] || { c: "var(--sga-slate)", l: s };
-		return `<a class="sga-stat" href="/app/job-order/view/list?job_status=${encodeURIComponent(s)}">
+		return `<a class="sga-stat" href="${joHref({ job_status: s })}">
 		  <span class="dot" style="background:${meta.c}"></span>
 		  <div class="v">${_int(d.job_status[s])}</div><div class="n">${_esc(meta.l)}</div></a>`;
 	}).join("");
@@ -187,9 +197,9 @@ function render($root, d, actions) {
 	// team workload + top customers
 	parts.push(section("Team & key clients", `
 	<div class="sga-grid k2">
-	  <div class="sga-card">${hbars(d.by_accountant, "var(--sga-brand)", "Current workload · active jobs, active staff")}
+	  <div class="sga-card">${hbars(d.by_accountant, "var(--sga-brand)", "Current workload · active jobs, active staff", (r) => joHref({ accountant: r.user }))}
 	    ${d.orphan_active ? `<div class="sga-warn">⚠ ${_int(d.orphan_active)} active job orders still assigned to former staff — needs reassignment.</div>` : ""}</div>
-	  <div class="sga-card">${hbars((d.top_customers || []).map((c) => ({ label: c.label, value: c.value })), "var(--sga-brand)", "Top customers · by job count")}</div>
+	  <div class="sga-card">${hbars((d.top_customers || []).map((c) => ({ label: c.label, value: c.value, cust: c.cust })), "var(--sga-brand)", "Top customers · by job count", (r) => joHref({ customer: r.cust }))}</div>
 	</div>`));
 
 	parts.push(`<div class="sga-foot">SGA Job Orders dashboard · figures live from this site · financials = ${_esc(money.period_label || "This year")}</div>`);
@@ -206,6 +216,7 @@ function render_limited($root, d) {
 	const g = d.greeting || {};
 	const mc = d.my_counts || {}, ms = d.my_status || {};
 	const parts = [];
+	_company = ""; _myuser = g.user || "";
 
 	parts.push(`
 	<div class="sga-head"><div class="sga-brand"><div class="sga-logo"><img src="${_esc(g.logo || "/files/logoonly200x200.png")}" alt="SGA"></div>
@@ -214,10 +225,10 @@ function render_limited($root, d) {
 	  <div class="g2">${_esc([g.designation, g.company].filter(Boolean).join(" · "))}</div></div>${avatar(g)}</div></div>`);
 
 	parts.push(section("My work at a glance", `<div class="sga-grid k4">
-	  ${kpi("My active jobs", _int(mc.active), "In progress right now", "var(--sga-brand)")}
-	  ${kpi("Open", _int(mc.open), "Not yet started", "var(--sga-brand-soft)")}
-	  ${kpi("Finished", _int(mc.finished), "Completed by me", "var(--sga-accent)")}
-	  ${kpi("Needs attention", _int(mc.attention), `<span class="sga-chip warn">Awaiting data / on hold</span>`, "var(--sga-amber)")}
+	  ${kpi("My active jobs", _int(mc.active), "In progress right now", "var(--sga-brand)", null, joHref({ job_status: "Progress" }))}
+	  ${kpi("Open", _int(mc.open), "Not yet started", "var(--sga-brand-soft)", null, joHref({ job_status: "Open" }))}
+	  ${kpi("Finished", _int(mc.finished), "Completed by me", "var(--sga-accent)", null, joHref({ job_status: "Finished" }))}
+	  ${kpi("Needs attention", _int(mc.attention), `<span class="sga-chip warn">Awaiting data / on hold</span>`, "var(--sga-amber)", null, joHref({ job_status: "Awaiting Client Data" }))}
 	</div>`));
 
 	// jobs needing my attention (to-do)
@@ -230,7 +241,7 @@ function render_limited($root, d) {
 	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
 	const tiles = order.filter((s) => ms[s] != null).map((s) => {
 		const m = STATUS_META[s] || { c: "var(--sga-slate)", l: s };
-		return `<div class="sga-stat"><span class="dot" style="background:${m.c}"></span><div class="v">${_int(ms[s])}</div><div class="n">${_esc(m.l)}</div></div>`;
+		return `<a class="sga-stat" href="${joHref({ job_status: s })}"><span class="dot" style="background:${m.c}"></span><div class="v">${_int(ms[s])}</div><div class="n">${_esc(m.l)}</div></a>`;
 	}).join("") || '<div class="sga-empty">No job orders assigned to you yet.</div>';
 	parts.push(section("My job status", `<div class="sga-stats">${tiles}</div>`));
 
@@ -243,7 +254,7 @@ function render_limited($root, d) {
 
 	// my work mix + my payment status
 	const paytiles = PAY_META.filter(([k]) => (d.my_payment || {})[k]).map(([k, c]) =>
-		`<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(d.my_payment[k])}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">None</div>';
+		`<a class="sga-stat" href="${joHref({ payment_status: k })}"><span class="dot" style="background:${c}"></span><div class="v">${_int(d.my_payment[k])}</div><div class="n">${_esc(k)}</div></a>`).join("") || '<div class="sga-empty">None</div>';
 	parts.push(section("My work mix", `<div class="sga-grid k2">
 	  <div class="sga-card">${hbars(d.my_by_service, "var(--sga-brand)", "My jobs by service")}</div>
 	  <div class="sga-card"><div class="sga-qtitle">My jobs by payment status</div><div class="sga-stats sga-stats-sm">${paytiles}</div></div>
@@ -294,14 +305,18 @@ function myleave(rows) {
 }
 
 // ---------- fragment builders ----------
-const ctx = (n, l) => `<div class="c"><span class="n">${_int(n)}</span><span class="l">${_esc(l)}</span></div>`;
+const ctx = (n, l, href) => {
+	const inner = `<span class="n">${_int(n)}</span><span class="l">${_esc(l)}</span>`;
+	return href ? `<a class="c lnk" href="${href}">${inner}</a>` : `<div class="c">${inner}</div>`;
+};
 function section(title, body, tight) {
 	return `<div class="sga-sec"><div class="sga-eye"><h2>${_esc(title)}</h2><span class="rule"></span></div>${body}</div>`;
 }
-function kpi(cap, big, sub, color, rate) {
+function kpi(cap, big, sub, color, rate, href) {
 	const bar = rate != null ? `<div class="sga-mini"><i style="width:${rate}%;background:${color}"></i></div>` : "";
-	return `<div class="sga-card kpi"><span class="stripe" style="background:${color}"></span>
-	  <div class="cap">${_esc(cap)}</div><div class="big">${big}</div><div class="sub">${sub}</div>${bar}</div>`;
+	const inner = `<span class="stripe" style="background:${color}"></span>
+	  <div class="cap">${_esc(cap)}</div><div class="big">${big}</div><div class="sub">${sub}</div>${bar}`;
+	return href ? `<a class="sga-card kpi lnk" href="${href}">${inner}</a>` : `<div class="sga-card kpi">${inner}</div>`;
 }
 function donut(pay) {
 	const total = Object.values(pay || {}).reduce((a, b) => a + b, 0) || 1;
@@ -312,7 +327,7 @@ function donut(pay) {
 		const from = (acc / total) * 100, to = ((acc + v) / total) * 100;
 		acc += v;
 		stops.push(`${c} ${from}% ${to}%`);
-		legend.push(`<div class="li"><span class="sw" style="background:${c}"></span><span class="lab">${_esc(k)}</span><span class="val">${_int(v)}</span><span class="pct">${((v / total) * 100).toFixed(1)}%</span></div>`);
+		legend.push(`<a class="li lnk" href="${joHref({ payment_status: k })}"><span class="sw" style="background:${c}"></span><span class="lab">${_esc(k)}</span><span class="val">${_int(v)}</span><span class="pct">${((v / total) * 100).toFixed(1)}%</span></a>`);
 	});
 	const paidPct = Math.round(((pay.Paid || 0) / total) * 100);
 	return `<div class="sga-eye tight"><h2>Payment breakdown</h2><span class="rule"></span></div>
@@ -320,13 +335,15 @@ function donut(pay) {
 	  <div class="mid"><b>${paidPct}%</b><span>Paid</span></div></div>
 	  <div class="sga-legend">${legend.join("")}</div></div>`;
 }
-function hbars(rows, color, title) {
+function hbars(rows, color, title, linkFn) {
 	rows = rows || [];
 	const max = Math.max(1, ...rows.map((r) => r.value));
-	const bars = rows.map((r) =>
-		`<div class="hbar"><div class="top"><span class="lab">${_esc(r.label)}</span><span class="val">${_int(r.value)}</span></div>
-		 <div class="track"><i style="width:${Math.max(3, (r.value / max) * 100)}%"></i></div></div>`).join("")
-		|| '<div class="sga-empty">No data</div>';
+	const bars = rows.map((r) => {
+		const inner = `<div class="top"><span class="lab">${_esc(r.label)}</span><span class="val">${_int(r.value)}</span></div>
+		 <div class="track"><i style="width:${Math.max(3, (r.value / max) * 100)}%"></i></div>`;
+		const href = linkFn && linkFn(r);
+		return href ? `<a class="hbar lnk" href="${href}">${inner}</a>` : `<div class="hbar">${inner}</div>`;
+	}).join("") || '<div class="sga-empty">No data</div>';
 	return `<div class="sga-eye tight"><h2>${_esc(title || "")}</h2><span class="rule"></span></div><div class="sga-hbars">${bars}</div>`;
 }
 function qlist(title, rows) {
@@ -383,8 +400,8 @@ function aging_section(d) {
 		 <div class="track"><i style="width:${Math.max(5, ((x.value || 0) / dmax) * 100)}%;background:var(--sga-bad)"></i></div></div>`).join("") || '<div class="sga-empty">None</div>';
 	return `<div class="sga-sec"><div class="sga-eye"><h2>Receivables aging & debtors</h2><span class="rule"></span></div>
 	<div class="sga-mini2">
-	  ${kpi("Total outstanding", _money(d.aging_total || 0), `${_int(totalN)} unpaid invoices`, "var(--sga-orange)")}
-	  ${kpi("90+ days overdue", _money(over.amt || 0), `<span class="sga-chip bad">${_int(over.n || 0)} invoices · action needed</span>`, "var(--sga-bad)")}
+	  ${kpi("Total outstanding", _money(d.aging_total || 0), `${_int(totalN)} unpaid invoices`, "var(--sga-orange)", null, joHref({ payment_status: "Not Paid" }))}
+	  ${kpi("90+ days overdue", _money(over.amt || 0), `<span class="sga-chip bad">${_int(over.n || 0)} invoices · action needed</span>`, "var(--sga-bad)", null, joHref({ payment_status: "Not Paid" }))}
 	</div>
 	<div class="sga-grid k2" style="margin-top:14px">
 	  <div class="sga-card"><div class="sga-qtitle">By invoice age</div><div class="sga-hbars">${bars}</div></div>
@@ -530,6 +547,13 @@ function inject_styles() {
 .sga-period button.on{background:var(--sga-brand);color:#fff}
 .sga-warn{margin-top:12px;font-size:12px;color:var(--sga-bad);background:color-mix(in srgb,var(--sga-bad) 10%,transparent);
  border:1px solid color-mix(in srgb,var(--sga-bad) 26%,transparent);border-radius:8px;padding:8px 10px}
+.sga-dash .lnk{cursor:pointer}
+.sga-card.kpi.lnk{transition:border-color .12s ease, box-shadow .12s ease}
+.sga-card.kpi.lnk:hover{border-color:var(--sga-brand);box-shadow:0 4px 14px rgba(21,86,54,.12)}
+.sga-stat[href]{transition:border-color .12s ease}.sga-stat[href]:hover{border-color:var(--sga-brand)}
+.hbar.lnk:hover .lab{color:var(--sga-brand)}.hbar.lnk:hover .track{outline:1px solid var(--sga-brand);outline-offset:1px;border-radius:5px}
+.sga-legend .li.lnk:hover .lab{color:var(--sga-brand)}
+.sga-ctx a.c.lnk:hover .n{color:var(--sga-brand)}
 .sga-foot{margin-top:26px;text-align:center;color:var(--sga-muted);font-size:12px}
 `;
 	const s = document.createElement("style");

@@ -27,6 +27,8 @@ const _int = (n) => (n == null ? "0" : Number(n).toLocaleString("en-US"));
 const _m = (n) => "AED " + (Number(n || 0) / 1e6).toFixed(2) + "M";
 const _esc = (s) => frappe.utils.escape_html(String(s == null ? "" : s));
 const _rel = (dt) => (dt ? frappe.datetime.comment_when(dt) : "");
+const _money = (n) => { n = Number(n || 0); return n >= 1e6 ? "AED " + (n / 1e6).toFixed(2) + "M" : "AED " + Math.round(n / 1000) + "K"; };
+const _pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
 const STATUS_META = {
 	Open: { c: "var(--sga-brand-soft)", l: "Open" },
@@ -99,6 +101,9 @@ function render($root, d, setPeriod) {
 	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished all‑time`, "var(--sga-accent)")}
 	</div></div>`);
 
+	// Receivables aging
+	parts.push(aging_section(d));
+
 	// status tiles
 	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
 	const tiles = order.filter((s) => d.job_status[s] != null).map((s) => {
@@ -115,6 +120,9 @@ function render($root, d, setPeriod) {
 	  <div class="sga-card">${donut(d.payment_status)}</div>
 	  <div class="sga-card">${hbars(d.by_service, "var(--sga-brand)", "Job orders by service · all time")}</div>
 	</div>`, true));
+
+	// compliance & efficiency
+	parts.push(compliance_section(d));
 
 	// quick lists (recent job orders) + shortcuts/reports
 	parts.push(section("Recent job orders", `
@@ -148,21 +156,23 @@ function render($root, d, setPeriod) {
 	// trend
 	parts.push(section("New job orders · last 12 months", `<div class="sga-card">${trend(d.by_month)}</div>`, true));
 
-	// proposals funnel + accountants
+	// proposals funnel (full width)
 	const p = d.proposals || {};
 	const conv = p.total ? Math.round((p.converted / p.total) * 100) : 0;
-	parts.push(section("Proposals & workload", `
+	parts.push(section("Proposals → Job Order funnel", `
+	<div class="sga-card"><div class="sga-funnel">
+	  ${fstep(p.total, "Total proposals")}
+	  ${fstep(p.converted, `<span class="arw">→</span> Converted · <b>${conv}%</b>`)}
+	  ${fstep(p.awaiting_acceptance, "Awaiting client acceptance")}
+	  ${fstep(p.awaiting_jo, "Accepted · awaiting JO")}
+	</div></div>`));
+
+	// team workload + top customers
+	parts.push(section("Team & key clients", `
 	<div class="sga-grid k2">
-	  <div class="sga-card">
-	    <div class="sga-funnel">
-	      ${fstep(p.total, "Total proposals")}
-	      ${fstep(p.converted, `<span class="arw">→</span> Converted · <b>${conv}%</b>`)}
-	      ${fstep(p.awaiting_acceptance, "Awaiting client acceptance")}
-	      ${fstep(p.awaiting_jo, "Accepted · awaiting JO")}
-	    </div>
-	  </div>
 	  <div class="sga-card">${hbars(d.by_accountant, "var(--sga-brand)", "Current workload · active jobs, active staff")}
 	    ${d.orphan_active ? `<div class="sga-warn">⚠ ${_int(d.orphan_active)} active job orders still assigned to former staff — needs reassignment.</div>` : ""}</div>
+	  <div class="sga-card">${hbars((d.top_customers || []).map((c) => ({ label: c.label, value: c.value })), "var(--sga-brand)", "Top customers · by job count")}</div>
 	</div>`));
 
 	parts.push(`<div class="sga-foot">SGA Job Orders dashboard · figures live from this site · financials = ${_esc(money.period_label || "This year")}</div>`);
@@ -257,6 +267,39 @@ function trend(rows) {
 	  <div class="xlab">${labels}</div></div>`;
 }
 
+function aging_section(d) {
+	const rows = d.aging || [];
+	if (!rows.length) return "";
+	const max = Math.max(1, ...rows.map((r) => r.amt || 0));
+	const col = { "0-30": "var(--sga-good)", "31-60": "var(--sga-amber)", "61-90": "var(--sga-orange)", "90+": "var(--sga-bad)" };
+	const over = rows.find((r) => r.bucket === "90+") || {};
+	const totalN = rows.reduce((a, r) => a + (r.n || 0), 0);
+	const bars = rows.map((r) =>
+		`<div class="hbar"><div class="top"><span class="lab">${_esc(r.bucket)} days · ${_int(r.n)} invoices</span><span class="val">${_money(r.amt)}</span></div>
+		 <div class="track"><i style="width:${Math.max(4, ((r.amt || 0) / max) * 100)}%;background:${col[r.bucket] || "var(--sga-brand)"}"></i></div></div>`).join("");
+	return `<div class="sga-sec"><div class="sga-eye"><h2>Receivables aging · outstanding</h2><span class="rule"></span></div>
+	<div class="sga-grid k2">
+	  <div class="sga-card"><div class="sga-hbars">${bars}</div></div>
+	  <div class="sga-grid" style="grid-template-columns:1fr 1fr;gap:14px;align-content:start">
+	    ${kpi("Total outstanding", _money(d.aging_total || 0), `${_int(totalN)} unpaid invoices`, "var(--sga-orange)")}
+	    ${kpi("90+ days overdue", _money(over.amt || 0), `<span class="sga-chip bad">${_int(over.n || 0)} invoices · action needed</span>`, "var(--sga-bad)")}
+	  </div>
+	</div></div>`;
+}
+
+function compliance_section(d) {
+	const c = d.compliance || {}, t = d.turnaround || {};
+	const kyc = _pct(c.kyc, c.total), loe = _pct(c.loe, c.total);
+	const wpColor = c.wp_pending > 0 ? "var(--sga-bad)" : "var(--sga-good)";
+	return `<div class="sga-sec"><div class="sga-eye"><h2>Compliance & efficiency</h2><span class="rule"></span></div>
+	<div class="sga-grid k4">
+	  ${kpi("Avg turnaround", (t.avg_days || 0) + " days", `${_int(t.n || 0)} finished jobs measured`, "var(--sga-brand)")}
+	  ${kpi("KYC received", kyc + "%", `${_int(c.kyc || 0)} of ${_int(c.total || 0)} jobs`, "var(--sga-good)", kyc)}
+	  ${kpi("LOE received", loe + "%", `${_int(c.loe || 0)} of ${_int(c.total || 0)} jobs`, "var(--sga-good)", loe)}
+	  ${kpi("Working papers", _int(c.wp_pending || 0) + " pending", `of ${_int(c.wp_applicable || 0)} due since May 2026`, wpColor)}
+	</div></div>`;
+}
+
 // ---------- styles ----------
 function inject_styles() {
 	if (document.getElementById("sga-dash-style")) return;
@@ -271,7 +314,8 @@ function inject_styles() {
 .sga-dash a{text-decoration:none;color:inherit}
 .sga-loading,.sga-empty{color:var(--sga-muted);padding:24px 4px;font-size:14px}
 .sga-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
- background:linear-gradient(120deg,var(--sga-brand-deep),var(--sga-brand));color:#fff;border-radius:16px;padding:20px 22px;margin-top:4px}
+ background:linear-gradient(125deg,#06200E 0%,#0C3520 55%,#124A2C 100%);color:#fff;border-radius:16px;padding:22px 24px;margin-top:4px;
+ box-shadow:0 10px 30px rgba(8,40,22,.18)}
 .sga-brand{display:flex;align-items:center;gap:12px}
 .sga-logo{width:48px;height:48px;border-radius:12px;background:#fff;border:1px solid rgba(255,255,255,.4);
  display:grid;place-items:center;padding:6px;flex:0 0 auto;box-shadow:0 2px 6px rgba(0,0,0,.12)}
@@ -303,6 +347,7 @@ function inject_styles() {
 .sga-chip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:650;padding:2px 8px;border-radius:999px}
 .sga-chip.good{background:color-mix(in srgb,var(--sga-good) 16%,transparent);color:var(--sga-good)}
 .sga-chip.warn{background:color-mix(in srgb,var(--sga-amber) 20%,transparent);color:var(--sga-amber)}
+.sga-chip.bad{background:color-mix(in srgb,var(--sga-bad) 16%,transparent);color:var(--sga-bad)}
 .sga-stats{display:grid;grid-template-columns:repeat(8,1fr);gap:10px}
 @media(max-width:1000px){.sga-stats{grid-template-columns:repeat(4,1fr)}}@media(max-width:560px){.sga-stats{grid-template-columns:repeat(2,1fr)}}
 .sga-stat{background:var(--sga-surface);border:1px solid var(--sga-line);border-radius:11px;padding:12px;position:relative;display:block}

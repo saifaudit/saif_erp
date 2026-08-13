@@ -99,6 +99,47 @@ def dashboard_data(period="year"):
 		where jo.docstatus = 1 and jo.job_status in {ACTIVE_STATUSES} and e.name is null""",
 	)[0][0]
 
+	# Receivables aging (unpaid submitted job orders by invoice age)
+	aging_rows = frappe.db.sql(
+		f"""select case
+			when datediff(curdate(), invoice_date) <= 30 then '0-30'
+			when datediff(curdate(), invoice_date) <= 60 then '31-60'
+			when datediff(curdate(), invoice_date) <= 90 then '61-90'
+			else '90+' end bucket,
+			count(*) n, round(sum(balance_amount)) amt
+		from {jo} where docstatus=1 and balance_amount > 0 and invoice_date is not null
+		group by bucket""", as_dict=True,
+	)
+	order = {"0-30": 0, "31-60": 1, "61-90": 2, "90+": 3}
+	aging = sorted(aging_rows, key=lambda r: order.get(r["bucket"], 9))
+	aging_total = sum(float(r["amt"] or 0) for r in aging)
+
+	# Top customers by job count (+ revenue)
+	top_customers = frappe.db.sql(
+		f"""select c.customer_name label, count(*) value, round(sum(jo.invoiced_amount)) revenue
+		from {jo} jo left join `tabCustomer` c on c.name = jo.customer
+		where jo.docstatus=1 group by jo.customer order by value desc limit 6""", as_dict=True,
+	)
+
+	# Compliance snapshot (working-paper rule only applies to jobs created on/after the cutoff)
+	WP_CUTOFF = "2026-05-07"
+	sub_total = frappe.db.count("Job Order", {"docstatus": 1})
+	wp_applicable = frappe.db.count("Job Order", {"job_status": "Finished", "creation": [">=", WP_CUTOFF]})
+	wp_done = frappe.db.count("Job Order", {"job_status": "Finished", "creation": [">=", WP_CUTOFF], "audit_working_paper_created": 1})
+	compliance = {
+		"total": sub_total,
+		"kyc": frappe.db.count("Job Order", {"docstatus": 1, "kyc_received": 1}),
+		"loe": frappe.db.count("Job Order", {"docstatus": 1, "loe_received": 1}),
+		"wp_applicable": wp_applicable, "wp_done": wp_done, "wp_pending": wp_applicable - wp_done,
+	}
+
+	# Average turnaround (finished jobs with a valid closure date)
+	t = frappe.db.sql(
+		f"""select round(avg(datediff(closure_date, job_date))) avg_days, count(*) n from {jo}
+		where job_status='Finished' and closure_date is not null and closure_date >= job_date""", as_dict=True,
+	)[0]
+	turnaround = {"avg_days": t.avg_days or 0, "n": t.n or 0}
+
 	proposals = {
 		"total": frappe.db.count("Quotation"),
 		"converted": frappe.db.count("Quotation", {"custom_job_order": ["is", "set"]}),
@@ -127,5 +168,7 @@ def dashboard_data(period="year"):
 		"active_jobs": active, "job_status": job_status, "payment_status": payment_status,
 		"by_service": by_service, "by_month": by_month, "by_accountant": by_accountant,
 		"orphan_active": orphan_active, "proposals": proposals,
+		"aging": aging, "aging_total": aging_total, "top_customers": top_customers,
+		"compliance": compliance, "turnaround": turnaround,
 		"recent": {"open": recent("Open"), "progress": recent("Progress"), "finished": recent("Finished")},
 	}

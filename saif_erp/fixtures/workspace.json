@@ -2,7 +2,7 @@
  {
   "app": null,
   "charts": [],
-  "content": "[{\"id\": \"78daf93057\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Job Orders</b></span>\", \"col\": 12}}, {\"id\": \"8f9d6402b7\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Job Orders Waiting Approval\", \"col\": 4}}, {\"id\": \"42f39f3c06\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Leave Section</b></span>\", \"col\": 12}}, {\"id\": \"9094acb96f\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Leave Days Awaiting Approval\", \"col\": 4}}, {\"id\": \"29c1229999\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Attendance</b></span>\", \"col\": 12}}, {\"id\": \"9093b651fd\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Absents\", \"col\": 4}}, {\"id\": \"dee1d9b30c\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Today's Check in\", \"col\": 4}}, {\"id\": \"0134548167\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Employee Not Checked in\", \"col\": 4}}, {\"id\": \"1b337b0bc0\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Late Chek Ins\", \"col\": 4}}]",
+  "content": "[{\"id\": \"78daf93057\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Job Orders</b></span>\", \"col\": 12}}, {\"id\": \"8f9d6402b7\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Waiting Approval - Job Order\", \"col\": 4}}, {\"id\": \"42f39f3c06\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Leave Section</b></span>\", \"col\": 12}}, {\"id\": \"9094acb96f\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Leave Application Waiting Approval\", \"col\": 4}}, {\"id\": \"29c1229999\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Attendance</b></span>\", \"col\": 12}}, {\"id\": \"9093b651fd\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Absents\", \"col\": 4}}, {\"id\": \"dee1d9b30c\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Today's Check in\", \"col\": 4}}, {\"id\": \"0134548167\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Employee Not Checked in\", \"col\": 4}}, {\"id\": \"1b337b0bc0\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Late Chek Ins\", \"col\": 4}}]",
   "custom_blocks": [],
   "docstatus": 0,
   "doctype": "Workspace",
@@ -16,7 +16,7 @@
   "link_to": null,
   "link_type": null,
   "links": [],
-  "modified": "2026-08-13 11:37:42.250562",
+  "modified": "2026-08-13 12:08:04.685907",
   "module": null,
   "name": "Admin Dash",
   "number_cards": [

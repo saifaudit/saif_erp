@@ -19,9 +19,11 @@ def _is_hr():
 	return bool(HR_ROLES & set(frappe.get_roles()))
 
 
-def _hr_overview():
-	"""Firm-wide HR snapshot for admins who may see all employee records."""
+def _hr_overview(att_month=None):
+	"""Firm-wide HR snapshot for admins who may see all employee records.
+	att_month ('YYYY-MM') selects the month for the team-attendance table."""
 	tdy = frappe.utils.today()
+	att_month = att_month or frappe.utils.getdate(tdy).strftime("%Y-%m")
 	active = frappe.db.count("Employee", {"status": "Active"})
 	headcount = frappe.db.sql(
 		"select company, count(*) n from `tabEmployee` where status='Active' group by company order by n desc", as_dict=True)
@@ -68,49 +70,58 @@ def _hr_overview():
 	team_leave = sorted(bymap.values(), key=lambda x: (x["company"] or "", x["employee_name"]))
 	# team attendance this month (holiday-aware, per employee)
 	team_attendance = []
+	month_label = frappe.utils.getdate(att_month + "-01").strftime("%B %Y")
 	for e in frappe.get_all("Employee", filters={"status": "Active"}, fields=["name", "employee_name", "company"], order_by="company, employee_name"):
-		a = _attendance_for(e.name)
+		a = _attendance_for(e.name, att_month)
 		team_attendance.append({"emp": e.name, "employee_name": e.employee_name, "company": e.company,
 		                        "present": a.get("Present", 0), "absent": a.get("Absent", 0),
 		                        "on_leave": a.get("On Leave", 0), "holidays": a.get("holidays", 0),
 		                        "working_days": a.get("working_days", 0)})
-	month = frappe.utils.getdate(frappe.utils.today()).strftime("%B %Y")
 	return {"active": active, "headcount": headcount, "on_leave": on_leave, "upcoming": upcoming,
-	        "team_leave": team_leave, "team_attendance": team_attendance, "month": month}
+	        "team_leave": team_leave, "team_attendance": team_attendance,
+	        "month": month_label, "att_month": att_month}
 
 
-def _attendance_for(emp):
-	"""Holiday-aware attendance summary (this month) for one employee.
-	Excludes the weekly-off day (e.g. Sunday) and public holidays from the
-	employee's Holiday List. Public holidays are Holiday rows; the weekly-off
-	is only a setting, so we exclude it by weekday."""
+def _attendance_for(emp, month=None):
+	"""Holiday-aware attendance summary for one employee, for a given month
+	('YYYY-MM'; defaults to the current month). Excludes the weekly-off day
+	(e.g. Sunday) and public holidays from the employee's Holiday List. The
+	current month is capped at today; past months use the full month."""
 	from datetime import timedelta
+	empty = {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0, "Work From Home": 0, "holidays": 0, "working_days": 0}
 	if not emp:
-		return {}
-	month_start = frappe.utils.getdate(frappe.utils.get_first_day(frappe.utils.today()))
+		return {**empty, "holiday_list": None, "month": ""}
 	tdy = frappe.utils.getdate(frappe.utils.today())
+	try:
+		month_start = frappe.utils.getdate(month + "-01") if month else frappe.utils.getdate(frappe.utils.get_first_day(tdy))
+	except Exception:
+		month_start = frappe.utils.getdate(frappe.utils.get_first_day(tdy))
+	month_end = frappe.utils.getdate(frappe.utils.get_last_day(month_start))
+	cap_end = min(month_end, tdy)  # don't count the future
+	label = month_start.strftime("%B %Y")
 	emp_hl = frappe.db.get_value("Employee", emp, "holiday_list")
+	if cap_end < month_start:  # month is entirely in the future
+		return {**empty, "holiday_list": emp_hl, "month": label}
 	holiday_dates, wo_idx = set(), None
 	if emp_hl:
 		weekly_off = frappe.db.get_value("Holiday List", emp_hl, "weekly_off")
 		wo_idx = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6}.get(weekly_off)
 		holiday_dates = {frappe.utils.getdate(r[0]) for r in frappe.db.sql(
 			"select holiday_date from `tabHoliday` where parent=%s and holiday_date between %s and %s",
-			(emp_hl, month_start, tdy))}
+			(emp_hl, month_start, cap_end))}
 
 	def is_off(dt):
 		return dt in holiday_dates or (wo_idx is not None and dt.weekday() == wo_idx)
 
 	counts = {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0, "Work From Home": 0}
-	# cap at today — don't count future-dated attendance (e.g. long approved leaves)
-	for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date between %s and %s and docstatus=1", (emp, month_start, tdy), as_dict=True):
+	for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date between %s and %s and docstatus=1", (emp, month_start, cap_end), as_dict=True):
 		if r.status == "Absent" and is_off(frappe.utils.getdate(r.attendance_date)):
 			continue
 		counts[r.status] = counts.get(r.status, 0) + 1
-	elapsed = (tdy - month_start).days + 1
+	elapsed = (cap_end - month_start).days + 1
 	working_days = sum(1 for i in range(elapsed) if not is_off(month_start + timedelta(days=i)))
 	return {**counts, "holidays": elapsed - working_days, "working_days": working_days,
-	        "holiday_list": emp_hl, "month": tdy.strftime("%B %Y")}
+	        "holiday_list": emp_hl, "month": label}
 
 
 def _personal(emp):
@@ -141,7 +152,7 @@ ACTIVE_STATUSES = "('Open','Progress','Under Review','Awaiting Client Data','Tem
 
 
 @frappe.whitelist()
-def dashboard_data(period="year", company=None):
+def dashboard_data(period="year", company=None, att_month=None):
 	"""Aggregates for the SGA dashboard. Firm-wide figures are for managers;
 	everyone else gets the header + their own recent job orders.
 
@@ -380,6 +391,6 @@ def dashboard_data(period="year", company=None):
 		"compliance": compliance, "turnaround": turnaround,
 		"companies": companies, "company": comp,
 		"me_personal": _personal(frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")),
-		"hr": _hr_overview() if _is_hr() else None,
+		"hr": _hr_overview(att_month) if _is_hr() else None,
 		"recent": {"open": recent("Open"), "progress": recent("Progress"), "finished": recent("Finished")},
 	}

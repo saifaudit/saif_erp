@@ -11,12 +11,13 @@ frappe.pages["sga-dashboard"].on_page_load = function (wrapper) {
 	const $root = $('<div class="sga-dash"></div>').appendTo(page.body);
 	$root.html('<div class="sga-loading">Loading dashboard…</div>');
 
-	let period = "year", company = "";
+	let period = "year", company = "", attMonth = "";
 	function setPeriod(p) { period = p; load(); }
 	function setCompany(c) { company = c || ""; load(); }
+	function setAttMonth(m) { attMonth = m || ""; load(); }
 	function load() {
-		frappe.call({ method: "saif_erp.api.dashboard_data", args: { period, company: company || undefined } }).then((r) => {
-			if (r && r.message) render($root, r.message, { setPeriod, setCompany });
+		frappe.call({ method: "saif_erp.api.dashboard_data", args: { period, company: company || undefined, att_month: attMonth || undefined } }).then((r) => {
+			if (r && r.message) render($root, r.message, { setPeriod, setCompany, setAttMonth });
 		});
 	}
 	page.set_secondary_action("Refresh", () => load(), "refresh");
@@ -214,6 +215,9 @@ function render($root, d, actions) {
 	});
 	$root.find(".sga-company").on("change", function () {
 		if (typeof actions.setCompany === "function") actions.setCompany($(this).val());
+	});
+	$root.find(".sga-attmonth").on("change", function () {
+		if (typeof actions.setAttMonth === "function") actions.setAttMonth($(this).val());
 	});
 }
 
@@ -518,7 +522,8 @@ function hrSection(hr) {
 	  <div class="sga-attnote"><b>Clash</b> = other staff on approved leave at the same time — check before approving overlapping days.</div></div>
 	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team leave balances · days remaining in 2026</div><div class="sga-tblwrap">${ltable}</div>
 	  <div class="sga-attnote"><b>Total left</b> = Annual/Earned + Casual + Legacy (the general leave pool), already excluding future-approved leave · <b>Sick*</b> is separate — granted only with a medical certificate, not part of the pool · <b>Future booked</b> = days committed to upcoming approved leave · Casual = India staff · Legacy = carried over from before this system.</div></div>
-	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team attendance · ${_esc(hr.month || "this month")}</div><div class="sga-tblwrap">${atable}</div>
+	<div class="sga-card" style="margin-top:14px"><div class="sga-qhead"><div class="sga-qtitle">Team attendance · ${_esc(hr.month || "this month")}</div>
+	  <input type="month" class="sga-attmonth" value="${_esc(hr.att_month || "")}"></div><div class="sga-tblwrap">${atable}</div>
 	  <div class="sga-attnote">Sundays &amp; public holidays excluded (each staff on their own UAE / India calendar).</div></div>`;
 }
 
@@ -639,6 +644,8 @@ function inject_styles() {
 .sga-hc .hc{font-size:12.5px;color:var(--sga-ink2);background:var(--sga-surface);border:1px solid var(--sga-line);border-radius:999px;padding:5px 12px}
 .sga-hc .hc.total{background:var(--sga-brand);color:#fff;border-color:var(--sga-brand)}
 .sga-hc .hc b{font-weight:700}
+.sga-qhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.sga-attmonth{background:var(--sga-surface);color:var(--sga-ink);border:1px solid var(--sga-line);border-radius:8px;padding:5px 10px;font-size:12.5px;font-family:inherit}
 .sga-tblwrap{overflow-x:auto}
 .sga-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .sga-tbl th{text-align:left;color:var(--sga-muted);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;padding:7px 8px;border-bottom:1px solid var(--sga-line);white-space:nowrap}

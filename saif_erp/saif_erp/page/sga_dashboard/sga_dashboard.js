@@ -1,0 +1,321 @@
+// Copyright (c) 2026, SGA World FZ LLC and contributors
+// SGA Job Orders — custom management dashboard page.
+
+frappe.pages["sga-dashboard"].on_page_load = function (wrapper) {
+	const page = frappe.ui.make_app_page({
+		parent: wrapper,
+		title: "SGA Dashboard",
+		single_column: true,
+	});
+	inject_styles();
+	const $root = $('<div class="sga-dash"></div>').appendTo(page.body);
+	$root.html('<div class="sga-loading">Loading dashboard…</div>');
+
+	page.set_secondary_action("Refresh", () => load(), "refresh");
+
+	function load() {
+		frappe.call({ method: "saif_erp.api.dashboard_data" }).then((r) => {
+			if (r && r.message) render($root, r.message);
+		});
+	}
+	load();
+};
+
+// ---------- helpers ----------
+const _int = (n) => (n == null ? "0" : Number(n).toLocaleString("en-US"));
+const _m = (n) => "AED " + (Number(n || 0) / 1e6).toFixed(2) + "M";
+const _esc = (s) => frappe.utils.escape_html(String(s == null ? "" : s));
+const _rel = (dt) => (dt ? frappe.datetime.comment_when(dt) : "");
+
+const STATUS_META = {
+	Open: { c: "var(--sga-brand-soft)", l: "Open" },
+	Progress: { c: "var(--sga-brand)", l: "In Progress" },
+	"Under Review": { c: "var(--sga-gold)", l: "Under Review" },
+	"Awaiting Client Data": { c: "var(--sga-slate2)", l: "Awaiting Client Data" },
+	"Temporarily stopped": { c: "var(--sga-amber)", l: "On Hold" },
+	Pending: { c: "var(--sga-slate)", l: "Pending" },
+	Finished: { c: "var(--sga-good)", l: "Finished" },
+	"Closed (Failed)": { c: "var(--sga-bad)", l: "Closed (Failed)" },
+};
+const PAY_META = [
+	["Paid", "var(--sga-good)"],
+	["Not Paid", "var(--sga-orange)"],
+	["Partial Payment", "var(--sga-amber)"],
+	["Hold / Dispute", "var(--sga-bad)"],
+	["Not Created", "var(--sga-slate)"],
+	["Another Choice", "var(--sga-slate2)"],
+];
+
+function render($root, d) {
+	if (!d.manager) return render_limited($root, d);
+	const g = d.greeting || {};
+	const money = d.money || {};
+	const parts = [];
+
+	// header
+	parts.push(`
+	<div class="sga-head">
+	  <div class="sga-brand">
+	    <div class="sga-glyph">SGA</div>
+	    <div>
+	      <div class="sga-bname">${_esc(g.company || "SGA World")}</div>
+	      <div class="sga-bsub">Job Order Operations</div>
+	    </div>
+	  </div>
+	  <div class="sga-greet">
+	    <div class="g1">${_esc(g.employee_name || g.full_name || "")}</div>
+	    <div class="g2">${_esc([g.designation, g.department].filter(Boolean).join(" · "))}</div>
+	  </div>
+	</div>
+	<div class="sga-ctx">
+	  ${ctx(d.counts.job_orders, "Job Orders")}
+	  ${ctx(d.counts.customers, "Customers")}
+	  ${ctx(d.counts.employees, "Active Staff")}
+	  ${ctx(d.counts.proposals, "Proposals")}
+	  ${ctx(d.counts.credentials, "Credentials")}
+	</div>`);
+
+	// KPI money
+	parts.push(section("Financial snapshot", `
+	<div class="sga-grid k4">
+	  ${kpi("Invoiced", _m(money.invoiced), "Across submitted job orders", "var(--sga-brand)")}
+	  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate)}
+	  ${kpi("Outstanding", _m(money.outstanding), `<span class="sga-chip warn">Invoiced minus collected</span>`, "var(--sga-orange)")}
+	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished to date`, "var(--sga-gold)")}
+	</div>`));
+
+	// status tiles
+	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
+	const tiles = order.filter((s) => d.job_status[s] != null).map((s) => {
+		const meta = STATUS_META[s] || { c: "var(--sga-slate)", l: s };
+		return `<a class="sga-stat" href="/app/job-order/view/list?job_status=${encodeURIComponent(s)}">
+		  <span class="dot" style="background:${meta.c}"></span>
+		  <div class="v">${_int(d.job_status[s])}</div><div class="n">${_esc(meta.l)}</div></a>`;
+	}).join("");
+	parts.push(section("Job status · live", `<div class="sga-stats">${tiles}</div>`));
+
+	// payment donut + services
+	parts.push(section("Payments & services", `
+	<div class="sga-grid k2">
+	  <div class="sga-card">${donut(d.payment_status)}</div>
+	  <div class="sga-card">${hbars(d.by_service, "var(--sga-brand)")}</div>
+	</div>`, true));
+
+	// quick lists (recent job orders) + shortcuts/reports
+	parts.push(section("Recent job orders", `
+	<div class="sga-grid k3">
+	  ${qlist("Open", d.recent.open)}
+	  ${qlist("In Progress", d.recent.progress)}
+	  ${qlist("Finished", d.recent.finished)}
+	</div>`));
+
+	parts.push(section("Quick actions & reports", `
+	<div class="sga-grid k2">
+	  <div class="sga-card">
+	    <div class="sga-links">
+	      ${shortcut("Full Job Orders List", `${d.counts.job_orders} total`, "/app/job-order", "list")}
+	      ${shortcut("Create Job Order", "New", "/app/job-order/new", "add")}
+	      ${shortcut("Credential Manager", `${d.counts.credentials} total`, "/app/credential-manager", "lock")}
+	      ${shortcut("Payment Status Report", "", "/app/query-report/Payment Status Report", "small-file")}
+	    </div>
+	  </div>
+	  <div class="sga-card">
+	    <div class="sga-rep-title">Reports — Job Order</div>
+	    <div class="sga-replist">
+	      ${report("Monthly Job Order Report – Staff")}
+	      ${report("Employee Work Flow Report")}
+	      ${report("My Contributor Job Orders")}
+	      ${report("SGA Employee Leave Balance")}
+	    </div>
+	  </div>
+	</div>`));
+
+	// trend
+	parts.push(section("New job orders · last 12 months", `<div class="sga-card">${trend(d.by_month)}</div>`, true));
+
+	// proposals funnel + accountants
+	const p = d.proposals || {};
+	const conv = p.total ? Math.round((p.converted / p.total) * 100) : 0;
+	parts.push(section("Proposals & workload", `
+	<div class="sga-grid k2">
+	  <div class="sga-card">
+	    <div class="sga-funnel">
+	      ${fstep(p.total, "Total proposals")}
+	      ${fstep(p.converted, `<span class="arw">→</span> Converted · <b>${conv}%</b>`)}
+	      ${fstep(p.awaiting_acceptance, "Awaiting client acceptance")}
+	      ${fstep(p.awaiting_jo, "Accepted · awaiting JO")}
+	    </div>
+	  </div>
+	  <div class="sga-card">${hbars(d.by_accountant, "var(--sga-brand)")}</div>
+	</div>`));
+
+	parts.push(`<div class="sga-foot">SGA Job Orders dashboard · figures live from this site</div>`);
+	$root.html(parts.join(""));
+}
+
+function render_limited($root, d) {
+	const g = d.greeting || {};
+	const rows = (d.recent_mine || []).map((r) =>
+		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}"><span>${_esc(r.name)}</span><span class="t">${_esc(r.job_status || "")}</span></a>`).join("") || '<div class="sga-empty">No job orders assigned to you.</div>';
+	$root.html(`
+	<div class="sga-head"><div class="sga-brand"><div class="sga-glyph">SGA</div>
+	  <div><div class="sga-bname">${_esc(g.company || "SGA World")}</div><div class="sga-bsub">My Job Orders</div></div></div>
+	  <div class="sga-greet"><div class="g1">${_esc(g.employee_name || g.full_name || "")}</div>
+	  <div class="g2">${_esc(g.designation || "")}</div></div></div>
+	${section("My recent job orders", `<div class="sga-card"><div class="sga-qlist">${rows}</div></div>`)}`);
+}
+
+// ---------- fragment builders ----------
+const ctx = (n, l) => `<div class="c"><span class="n">${_int(n)}</span><span class="l">${_esc(l)}</span></div>`;
+function section(title, body, tight) {
+	return `<div class="sga-sec"><div class="sga-eye"><h2>${_esc(title)}</h2><span class="rule"></span></div>${body}</div>`;
+}
+function kpi(cap, big, sub, color, rate) {
+	const bar = rate != null ? `<div class="sga-mini"><i style="width:${rate}%;background:${color}"></i></div>` : "";
+	return `<div class="sga-card kpi"><span class="stripe" style="background:${color}"></span>
+	  <div class="cap">${_esc(cap)}</div><div class="big">${big}</div><div class="sub">${sub}</div>${bar}</div>`;
+}
+function donut(pay) {
+	const total = Object.values(pay || {}).reduce((a, b) => a + b, 0) || 1;
+	let acc = 0, stops = [], legend = [];
+	PAY_META.forEach(([k, c]) => {
+		const v = pay[k] || 0;
+		if (!v && k !== "Paid") return;
+		const from = (acc / total) * 100, to = ((acc + v) / total) * 100;
+		acc += v;
+		stops.push(`${c} ${from}% ${to}%`);
+		legend.push(`<div class="li"><span class="sw" style="background:${c}"></span><span class="lab">${_esc(k)}</span><span class="val">${_int(v)}</span><span class="pct">${((v / total) * 100).toFixed(1)}%</span></div>`);
+	});
+	const paidPct = Math.round(((pay.Paid || 0) / total) * 100);
+	return `<div class="sga-eye tight"><h2>Payment breakdown</h2><span class="rule"></span></div>
+	<div class="sga-donwrap"><div class="sga-donut" style="background:conic-gradient(${stops.join(",")})">
+	  <div class="mid"><b>${paidPct}%</b><span>Paid</span></div></div>
+	  <div class="sga-legend">${legend.join("")}</div></div>`;
+}
+function hbars(rows, color) {
+	rows = rows || [];
+	const max = Math.max(1, ...rows.map((r) => r.value));
+	const bars = rows.map((r) =>
+		`<div class="hbar"><div class="top"><span class="lab">${_esc(r.label)}</span><span class="val">${_int(r.value)}</span></div>
+		 <div class="track"><i style="width:${Math.max(3, (r.value / max) * 100)}%"></i></div></div>`).join("");
+	const title = rows.length && rows[0].user !== undefined ? "Workload by accountant" : "Job orders by service";
+	return `<div class="sga-eye tight"><h2>${title}</h2><span class="rule"></span></div><div class="sga-hbars">${bars}</div>`;
+}
+function qlist(title, rows) {
+	rows = rows || [];
+	const body = rows.map((r) =>
+		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}">
+		 <span>${_esc(r.name)}</span><span class="t">${_esc(_rel(r.modified))}</span></a>`).join("") || '<div class="sga-empty">None</div>';
+	return `<div class="sga-card"><div class="sga-qtitle">${_esc(title)}</div><div class="sga-qlist">${body}</div></div>`;
+}
+function shortcut(label, meta, href, icon) {
+	return `<a class="sga-shortcut" href="${href}">
+	  <span class="ic">${frappe.utils.icon(icon, "sm")}</span>
+	  <span class="lb">${_esc(label)}</span>${meta ? `<span class="mt">${_esc(meta)}</span>` : ""}</a>`;
+}
+function report(name) {
+	return `<a class="sga-rep" href="/app/query-report/${encodeURIComponent(name)}">${_esc(name)}</a>`;
+}
+function fstep(v, n) {
+	return `<div class="fstep"><div class="v">${_int(v)}</div><div class="n">${n}</div></div>`;
+}
+function trend(rows) {
+	rows = rows || [];
+	const W = 720, H = 150, n = rows.length || 1;
+	const max = Math.max(1, ...rows.map((r) => r.value));
+	const step = n > 1 ? W / (n - 1) : W;
+	const pts = rows.map((r, i) => [i * step, H - (r.value / max) * (H - 24) - 6]);
+	const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(0) + "," + p[1].toFixed(0)).join(" ");
+	const area = `${line} L${W},${H} L0,${H} Z`;
+	const labels = rows.map((r) => `<span>${_esc(r.label.slice(5))}</span>`).join("");
+	const last = pts[pts.length - 1] || [0, 0];
+	return `<div class="sga-eye tight"><h2>New job orders · 12 months</h2><span class="rule"></span></div>
+	<div class="sga-trend"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+	  <line class="gl" x1="0" y1="35" x2="${W}" y2="35"/><line class="gl" x1="0" y1="80" x2="${W}" y2="80"/><line class="gl" x1="0" y1="125" x2="${W}" y2="125"/>
+	  <defs><linearGradient id="sgaFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sga-brand)" stop-opacity=".26"/><stop offset="1" stop-color="var(--sga-brand)" stop-opacity="0"/></linearGradient></defs>
+	  <path fill="url(#sgaFill)" d="${area}"/><path fill="none" stroke="var(--sga-brand)" stroke-width="2.5" stroke-linejoin="round" d="${line}"/>
+	  <circle cx="${last[0].toFixed(0)}" cy="${last[1].toFixed(0)}" r="4.5" fill="var(--sga-gold)"/></svg>
+	  <div class="xlab">${labels}</div></div>`;
+}
+
+// ---------- styles ----------
+function inject_styles() {
+	if (document.getElementById("sga-dash-style")) return;
+	const css = `
+.sga-dash{--sga-brand:#0C5460;--sga-brand-deep:#0A3D46;--sga-brand-soft:#12707F;--sga-gold:#B98A2E;
+ --sga-good:#2E7D5B;--sga-amber:#C0902F;--sga-orange:#CC6B3C;--sga-bad:#B0413A;--sga-slate:#7C8B94;--sga-slate2:#54707C;
+ --sga-surface:#fff;--sga-surface2:#F5F8F7;--sga-line:#E1E7E5;--sga-ink:#16232A;--sga-ink2:#43535B;--sga-muted:#75838B;
+ font-variant-numeric:tabular-nums;color:var(--sga-ink);padding-bottom:30px}
+[data-theme="dark"] .sga-dash{--sga-brand:#3BA0AF;--sga-brand-deep:#0A2D34;--sga-brand-soft:#2C8494;--sga-gold:#D8B45A;
+ --sga-good:#4FB587;--sga-amber:#DCB14E;--sga-orange:#E08B57;--sga-bad:#E0685F;--sga-slate:#8FA1AB;--sga-slate2:#A9C0CB;
+ --sga-surface:#1B252B;--sga-surface2:#151E23;--sga-line:#2A363C;--sga-ink:#EAF1F0;--sga-ink2:#BCCACF;--sga-muted:#8A9BA3}
+.sga-dash a{text-decoration:none;color:inherit}
+.sga-loading,.sga-empty{color:var(--sga-muted);padding:24px 4px;font-size:14px}
+.sga-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+ background:linear-gradient(120deg,var(--sga-brand-deep),var(--sga-brand));color:#fff;border-radius:16px;padding:20px 22px;margin-top:4px}
+.sga-brand{display:flex;align-items:center;gap:12px}
+.sga-glyph{width:44px;height:44px;border-radius:11px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);
+ display:grid;place-items:center;font-weight:700;font-size:18px;color:var(--sga-gold);letter-spacing:.02em}
+.sga-bname{font-size:18px;font-weight:650}.sga-bsub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.7);margin-top:2px}
+.sga-greet{text-align:right}.sga-greet .g1{font-size:15px;font-weight:600}.sga-greet .g2{font-size:12px;color:rgba(255,255,255,.72);margin-top:2px}
+.sga-ctx{display:flex;gap:26px;flex-wrap:wrap;margin:16px 4px 0}
+.sga-ctx .c{display:flex;flex-direction:column}.sga-ctx .n{font-size:19px;font-weight:650}.sga-ctx .l{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--sga-muted)}
+.sga-sec{margin-top:26px}
+.sga-eye{display:flex;align-items:center;gap:10px;margin-bottom:12px}.sga-eye.tight{margin-bottom:14px}
+.sga-eye h2{font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--sga-muted);margin:0}
+.sga-eye .rule{height:1px;background:var(--sga-line);flex:1}
+.sga-grid{display:grid;gap:14px}.sga-grid.k4{grid-template-columns:repeat(4,1fr)}.sga-grid.k3{grid-template-columns:repeat(3,1fr)}.sga-grid.k2{grid-template-columns:1fr 1fr}
+@media(max-width:1000px){.sga-grid.k4{grid-template-columns:repeat(2,1fr)}.sga-grid.k3,.sga-grid.k2{grid-template-columns:1fr}}
+.sga-card{background:var(--sga-surface);border:1px solid var(--sga-line);border-radius:13px;padding:16px}
+.sga-card.kpi{position:relative;overflow:hidden}
+.kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px}
+.kpi .cap{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--sga-muted);font-weight:600}
+.kpi .big{font-size:28px;font-weight:700;margin-top:7px;letter-spacing:.01em}
+.kpi .sub{font-size:12.5px;color:var(--sga-ink2);margin-top:7px}
+.sga-mini{height:6px;border-radius:4px;background:var(--sga-surface2);border:1px solid var(--sga-line);overflow:hidden;margin-top:10px}
+.sga-mini>i{display:block;height:100%;border-radius:4px}
+.sga-chip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:650;padding:2px 8px;border-radius:999px}
+.sga-chip.good{background:color-mix(in srgb,var(--sga-good) 16%,transparent);color:var(--sga-good)}
+.sga-chip.warn{background:color-mix(in srgb,var(--sga-amber) 20%,transparent);color:var(--sga-amber)}
+.sga-stats{display:grid;grid-template-columns:repeat(8,1fr);gap:10px}
+@media(max-width:1000px){.sga-stats{grid-template-columns:repeat(4,1fr)}}@media(max-width:560px){.sga-stats{grid-template-columns:repeat(2,1fr)}}
+.sga-stat{background:var(--sga-surface);border:1px solid var(--sga-line);border-radius:11px;padding:12px;position:relative;display:block}
+.sga-stat .dot{width:9px;height:9px;border-radius:50%;position:absolute;top:13px;right:12px}
+.sga-stat .v{font-size:22px;font-weight:700}.sga-stat .n{font-size:11.5px;color:var(--sga-muted);margin-top:2px;line-height:1.3}
+.sga-donwrap{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.sga-donut{--s:158px;width:var(--s);height:var(--s);flex:0 0 var(--s);border-radius:50%;position:relative;
+ -webkit-mask:radial-gradient(circle at center,transparent 47px,#000 48px);mask:radial-gradient(circle at center,transparent 47px,#000 48px)}
+.sga-donut .mid{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.sga-donut .mid b{font-size:24px;font-weight:750}.sga-donut .mid span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--sga-muted)}
+.sga-legend{flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px}
+.sga-legend .li{display:flex;align-items:center;gap:9px;font-size:13px}
+.sga-legend .sw{width:11px;height:11px;border-radius:3px}.sga-legend .lab{flex:1;color:var(--sga-ink2)}.sga-legend .val{font-weight:700}
+.sga-legend .pct{color:var(--sga-muted);font-size:12px;width:42px;text-align:right}
+.sga-hbars{display:flex;flex-direction:column;gap:10px}
+.hbar .top{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px}.hbar .top .lab{color:var(--sga-ink2)}.hbar .top .val{font-weight:700}
+.track{height:9px;border-radius:5px;background:var(--sga-surface2);border:1px solid var(--sga-line);overflow:hidden}
+.track>i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--sga-brand-soft),var(--sga-brand))}
+.sga-qtitle{font-size:13px;font-weight:700;margin-bottom:8px}
+.sga-qlist{display:flex;flex-direction:column}
+.sga-qrow{display:flex;justify-content:space-between;gap:10px;padding:8px 6px;border-top:1px solid var(--sga-line);font-size:13px}
+.sga-qrow:first-child{border-top:0}.sga-qrow:hover{background:var(--sga-surface2)}.sga-qrow .t{color:var(--sga-muted);font-size:12px}
+.sga-links{display:flex;flex-direction:column;gap:8px}
+.sga-shortcut{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--sga-line);border-radius:10px;background:var(--sga-surface2)}
+.sga-shortcut:hover{border-color:var(--sga-brand)}.sga-shortcut .lb{font-weight:600;font-size:13.5px;flex:1}.sga-shortcut .mt{color:var(--sga-muted);font-size:12px}
+.sga-shortcut .ic{color:var(--sga-brand);display:flex}
+.sga-rep-title{font-size:13px;font-weight:700;margin-bottom:10px}
+.sga-replist{display:flex;flex-direction:column;gap:2px}
+.sga-rep{padding:9px 6px;border-top:1px solid var(--sga-line);font-size:13.5px;color:var(--sga-brand);font-weight:550}
+.sga-rep:first-child{border-top:0}.sga-rep:hover{text-decoration:underline}
+.sga-trend svg{width:100%;height:160px;display:block}.sga-trend .gl{stroke:var(--sga-line);stroke-width:1}
+.sga-trend .xlab{display:flex;justify-content:space-between;font-size:10px;color:var(--sga-muted);margin-top:4px}
+.sga-funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}@media(max-width:620px){.sga-funnel{grid-template-columns:repeat(2,1fr)}}
+.fstep{background:var(--sga-surface2);border:1px solid var(--sga-line);border-radius:11px;padding:13px}
+.fstep .v{font-size:24px;font-weight:750}.fstep .n{font-size:12px;color:var(--sga-muted);margin-top:3px}.fstep .arw{color:var(--sga-gold);font-weight:700}
+.sga-foot{margin-top:26px;text-align:center;color:var(--sga-muted);font-size:12px}
+`;
+	const s = document.createElement("style");
+	s.id = "sga-dash-style";
+	s.textContent = css;
+	document.head.appendChild(s);
+}

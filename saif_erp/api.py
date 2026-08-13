@@ -46,11 +46,12 @@ def _hr_overview():
 		future_by_emp[u["emp"]] = future_by_emp.get(u["emp"], 0) + (u["days"] or 0)
 	# per-employee leave balances (Annual/Earned, Sick, Casual, Legacy = carried-over)
 	lts = ["Annual Leave", "Earned Leave", "Sick Leave (Medical Certificate)", "Casual Leave", "Legacy Leave"]
+	yend = "%s-12-31" % frappe.utils.getdate(tdy).year  # scope balances to the current year
 	rows = frappe.db.sql(
 		"""select e.name emp, e.employee_name nm, e.company co, lle.leave_type lt, round(sum(lle.leaves),1) bal
 		from `tabLeave Ledger Entry` lle join `tabEmployee` e on e.name = lle.employee
-		where e.status='Active' and lle.docstatus=1 and lle.leave_type in %(lts)s
-		group by e.name, lle.leave_type""", {"lts": tuple(lts)}, as_dict=True)
+		where e.status='Active' and lle.docstatus=1 and lle.leave_type in %(lts)s and lle.from_date <= %(yend)s
+		group by e.name, lle.leave_type""", {"lts": tuple(lts), "yend": yend}, as_dict=True)
 	bymap = {}
 	for r in rows:
 		d = bymap.setdefault(r.emp, {"emp": r.emp, "employee_name": r.nm, "company": r.co,
@@ -118,14 +119,15 @@ def _personal(emp):
 	empty = {"my_leave": [], "my_attendance": {}, "my_checkins": []}
 	if not emp:
 		return empty
+	yend = "%s-12-31" % frappe.utils.getdate(frappe.utils.today()).year
 	my_leave = frappe.db.sql(
 		"""select leave_type,
 			sum(case when transaction_type='Leave Allocation' and is_expired=0 and leaves>0 then leaves else 0 end) allocated,
 			-1*sum(case when transaction_type='Leave Application' then leaves else 0 end) taken,
 			sum(leaves) balance
-		from `tabLeave Ledger Entry` where employee=%s and docstatus=1
+		from `tabLeave Ledger Entry` where employee=%s and docstatus=1 and from_date <= %s
 		group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
-		emp, as_dict=True,
+		(emp, yend), as_dict=True,
 	)
 	my_attendance = _attendance_for(emp)
 	my_checkins = frappe.get_all(

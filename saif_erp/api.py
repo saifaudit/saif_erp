@@ -122,9 +122,10 @@ def dashboard_data(period="year", company=None):
 	}
 
 	by_service = frappe.db.sql(
-		f"""select coalesce(it.item_name, jo.service, 'Unknown') label, count(*) value
+		f"""select coalesce(it.item_name, jo.service, 'Unknown') label, count(*) value,
+			round(sum(jo.invoiced_amount)) revenue
 		from {jo} jo left join `tabItem` it on it.name = jo.service
-		where jo.docstatus = 1{cw("jo")} group by label order by value desc limit 8""", as_dict=True,
+		where jo.docstatus = 1{cw("jo")} group by label order by revenue desc limit 8""", as_dict=True,
 	)
 	by_month = frappe.db.sql(
 		f"""select DATE_FORMAT(job_date, '%Y-%m') label, count(*) value from {jo}
@@ -161,6 +162,25 @@ def dashboard_data(period="year", company=None):
 	order = {"0-30": 0, "31-60": 1, "61-90": 2, "90+": 3}
 	aging = sorted(aging_rows, key=lambda r: order.get(r["bucket"], 9))
 	aging_total = sum(float(r["amt"] or 0) for r in aging)
+
+	# Revenue trend (invoiced vs collected) + throughput (created vs finished)
+	rev_trend = frappe.db.sql(
+		f"""select DATE_FORMAT(job_date, '%Y-%m') label, round(sum(invoiced_amount)) inv, round(sum(paid_amount)) paid
+		from {jo} where docstatus=1 and job_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH){cw()}
+		group by label order by label""", as_dict=True,
+	)
+	throughput = frappe.db.sql(
+		f"""select DATE_FORMAT(job_date, '%Y-%m') label, count(*) created,
+			sum(case when job_status='Finished' then 1 else 0 end) finished
+		from {jo} where docstatus=1 and job_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH){cw()}
+		group by label order by label""", as_dict=True,
+	)
+	top_debtors = frappe.db.sql(
+		f"""select c.customer_name label, round(sum(jo.balance_amount)) value
+		from {jo} jo left join `tabCustomer` c on c.name = jo.customer
+		where jo.docstatus=1 and jo.balance_amount > 0{cw("jo")}
+		group by jo.customer order by value desc limit 6""", as_dict=True,
+	)
 
 	# Top customers by job count (+ revenue)
 	top_customers = frappe.db.sql(
@@ -217,6 +237,7 @@ def dashboard_data(period="year", company=None):
 		"by_service": by_service, "by_month": by_month, "by_accountant": by_accountant,
 		"orphan_active": orphan_active, "proposals": proposals,
 		"aging": aging, "aging_total": aging_total, "top_customers": top_customers,
+		"top_debtors": top_debtors, "rev_trend": rev_trend, "throughput": throughput,
 		"compliance": compliance, "turnaround": turnaround,
 		"companies": companies, "company": comp,
 		"recent": {"open": recent("Open"), "progress": recent("Progress"), "finished": recent("Finished")},

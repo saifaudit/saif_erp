@@ -27,7 +27,7 @@ frappe.pages["sga-dashboard"].on_page_load = function (wrapper) {
 const _int = (n) => (n == null ? "0" : Number(n).toLocaleString("en-US"));
 const _m = (n) => "AED " + (Number(n || 0) / 1e6).toFixed(2) + "M";
 const _esc = (s) => frappe.utils.escape_html(String(s == null ? "" : s));
-const _rel = (dt) => (dt ? frappe.datetime.comment_when(dt) : "");
+const _rel = (dt) => { if (!dt) return ""; try { return $(frappe.datetime.comment_when(dt)).text() || ""; } catch (e) { return frappe.datetime.str_to_user ? frappe.datetime.str_to_user(dt) : String(dt); } };
 const _money = (n) => { n = Number(n || 0); return n >= 1e6 ? "AED " + (n / 1e6).toFixed(2) + "M" : "AED " + Math.round(n / 1000) + "K"; };
 const _pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
@@ -130,7 +130,7 @@ function render($root, d, actions) {
 	parts.push(section("Payments & services", `
 	<div class="sga-grid k2">
 	  <div class="sga-card">${donut(d.payment_status)}</div>
-	  <div class="sga-card">${hbars(d.by_service, "var(--sga-brand)", "Job orders by service · all time")}</div>
+	  <div class="sga-card">${svc_bars(d.by_service)}</div>
 	</div>`, true));
 
 	// compliance & efficiency
@@ -165,8 +165,13 @@ function render($root, d, actions) {
 	  </div>
 	</div>`));
 
-	// trend
-	parts.push(section("New job orders · last 12 months", `<div class="sga-card">${trend(d.by_month)}</div>`, true));
+	// trends: revenue (invoiced vs collected) + throughput (created vs finished)
+	parts.push(section("Revenue · invoiced vs collected", `<div class="sga-card">${trend2(d.rev_trend, [
+		{ key: "inv", label: "Invoiced", color: "var(--sga-brand)" },
+		{ key: "paid", label: "Collected", color: "var(--sga-accent)" }])}</div>`, true));
+	parts.push(section("Throughput · created vs finished", `<div class="sga-card">${trend2(d.throughput, [
+		{ key: "created", label: "Created", color: "var(--sga-slate2)" },
+		{ key: "finished", label: "Finished", color: "var(--sga-good)" }])}</div>`, true));
 
 	// proposals funnel (full width)
 	const p = d.proposals || {};
@@ -329,14 +334,47 @@ function aging_section(d) {
 	const bars = rows.map((r) =>
 		`<div class="hbar"><div class="top"><span class="lab">${_esc(r.bucket)} days · ${_int(r.n)} invoices</span><span class="val">${_money(r.amt)}</span></div>
 		 <div class="track"><i style="width:${Math.max(4, ((r.amt || 0) / max) * 100)}%;background:${col[r.bucket] || "var(--sga-brand)"}"></i></div></div>`).join("");
-	return `<div class="sga-sec"><div class="sga-eye"><h2>Receivables aging · outstanding</h2><span class="rule"></span></div>
-	<div class="sga-grid k2">
-	  <div class="sga-card"><div class="sga-hbars">${bars}</div></div>
-	  <div class="sga-grid" style="grid-template-columns:1fr 1fr;gap:14px;align-content:start">
-	    ${kpi("Total outstanding", _money(d.aging_total || 0), `${_int(totalN)} unpaid invoices`, "var(--sga-orange)")}
-	    ${kpi("90+ days overdue", _money(over.amt || 0), `<span class="sga-chip bad">${_int(over.n || 0)} invoices · action needed</span>`, "var(--sga-bad)")}
-	  </div>
+	const debtors = d.top_debtors || [];
+	const dmax = Math.max(1, ...debtors.map((x) => x.value || 0));
+	const dbars = debtors.map((x) =>
+		`<div class="hbar"><div class="top"><span class="lab">${_esc((x.label || "—").slice(0, 30))}</span><span class="val">${_money(x.value)}</span></div>
+		 <div class="track"><i style="width:${Math.max(5, ((x.value || 0) / dmax) * 100)}%;background:var(--sga-bad)"></i></div></div>`).join("") || '<div class="sga-empty">None</div>';
+	return `<div class="sga-sec"><div class="sga-eye"><h2>Receivables aging & debtors</h2><span class="rule"></span></div>
+	<div class="sga-mini2">
+	  ${kpi("Total outstanding", _money(d.aging_total || 0), `${_int(totalN)} unpaid invoices`, "var(--sga-orange)")}
+	  ${kpi("90+ days overdue", _money(over.amt || 0), `<span class="sga-chip bad">${_int(over.n || 0)} invoices · action needed</span>`, "var(--sga-bad)")}
+	</div>
+	<div class="sga-grid k2" style="margin-top:14px">
+	  <div class="sga-card"><div class="sga-qtitle">By invoice age</div><div class="sga-hbars">${bars}</div></div>
+	  <div class="sga-card"><div class="sga-qtitle">Top debtors · who owes most</div><div class="sga-hbars">${dbars}</div></div>
 	</div></div>`;
+}
+
+function svc_bars(rows) {
+	rows = rows || [];
+	const max = Math.max(1, ...rows.map((r) => r.revenue || 0));
+	const bars = rows.map((r) =>
+		`<div class="hbar"><div class="top"><span class="lab">${_esc((r.label || "").slice(0, 32))} <span style="color:var(--sga-muted)">· ${_int(r.value)} jobs</span></span><span class="val">${_money(r.revenue)}</span></div>
+		 <div class="track"><i style="width:${Math.max(3, ((r.revenue || 0) / max) * 100)}%"></i></div></div>`).join("");
+	return `<div class="sga-eye tight"><h2>Revenue by service · all time</h2><span class="rule"></span></div><div class="sga-hbars">${bars}</div>`;
+}
+
+function trend2(rows, series) {
+	rows = rows || [];
+	const W = 720, H = 150;
+	const max = Math.max(1, ...rows.flatMap((r) => series.map((s) => Number(r[s.key] || 0))));
+	const n = rows.length || 1, step = n > 1 ? W / (n - 1) : W;
+	const lines = series.map((s) => {
+		const pts = rows.map((r, i) => [i * step, H - (Number(r[s.key] || 0) / max) * (H - 24) - 6]);
+		const path = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(0) + "," + p[1].toFixed(0)).join(" ");
+		const last = pts[pts.length - 1] || [0, 0];
+		return `<path fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" d="${path}"/><circle cx="${last[0].toFixed(0)}" cy="${last[1].toFixed(0)}" r="4" fill="${s.color}"/>`;
+	}).join("");
+	const legend = series.map((s) => `<span class="lg"><i style="background:${s.color}"></i>${_esc(s.label)}</span>`).join("");
+	const labels = rows.map((r) => `<span>${_esc(String(r.label).slice(5))}</span>`).join("");
+	return `<div class="sga-legend2">${legend}</div><div class="sga-trend"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+	  <line class="gl" x1="0" y1="35" x2="${W}" y2="35"/><line class="gl" x1="0" y1="80" x2="${W}" y2="80"/><line class="gl" x1="0" y1="125" x2="${W}" y2="125"/>
+	  ${lines}</svg><div class="xlab">${labels}</div></div>`;
 }
 
 function compliance_section(d) {
@@ -434,6 +472,10 @@ function inject_styles() {
 .sga-replist{display:flex;flex-direction:column;gap:2px}
 .sga-rep{padding:9px 6px;border-top:1px solid var(--sga-line);font-size:13.5px;color:var(--sga-brand);font-weight:550}
 .sga-rep:first-child{border-top:0}.sga-rep:hover{text-decoration:underline}
+.sga-mini2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:1000px){.sga-mini2{grid-template-columns:1fr}}
+.sga-legend2{display:flex;gap:18px;margin-bottom:8px;font-size:12.5px;color:var(--sga-ink2)}
+.sga-legend2 .lg{display:flex;align-items:center;gap:7px}
+.sga-legend2 .lg i{width:13px;height:3px;border-radius:2px;display:inline-block}
 .sga-trend svg{width:100%;height:160px;display:block}.sga-trend .gl{stroke:var(--sga-line);stroke-width:1}
 .sga-trend .xlab{display:flex;justify-content:space-between;font-size:10px;color:var(--sga-muted);margin-top:4px}
 .sga-funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}@media(max-width:620px){.sga-funnel{grid-template-columns:repeat(2,1fr)}}

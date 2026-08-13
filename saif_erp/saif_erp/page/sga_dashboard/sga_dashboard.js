@@ -11,13 +11,14 @@ frappe.pages["sga-dashboard"].on_page_load = function (wrapper) {
 	const $root = $('<div class="sga-dash"></div>').appendTo(page.body);
 	$root.html('<div class="sga-loading">Loading dashboard…</div>');
 
-	page.set_secondary_action("Refresh", () => load(), "refresh");
-
+	let period = "year";
+	function setPeriod(p) { period = p; load(); }
 	function load() {
-		frappe.call({ method: "saif_erp.api.dashboard_data" }).then((r) => {
-			if (r && r.message) render($root, r.message);
+		frappe.call({ method: "saif_erp.api.dashboard_data", args: { period } }).then((r) => {
+			if (r && r.message) render($root, r.message, setPeriod);
 		});
 	}
+	page.set_secondary_action("Refresh", () => load(), "refresh");
 	load();
 };
 
@@ -53,11 +54,12 @@ const PAY_META = [
 	["Another Choice", "var(--sga-slate2)"],
 ];
 
-function render($root, d) {
+function render($root, d, setPeriod) {
 	if (!d.manager) return render_limited($root, d);
 	const g = d.greeting || {};
 	const money = d.money || {};
 	const parts = [];
+	const period = money.period || "year";
 
 	// header
 	parts.push(`
@@ -85,14 +87,17 @@ function render($root, d) {
 	  ${ctx(d.counts.credentials, "Credentials")}
 	</div>`);
 
-	// KPI money
-	parts.push(section("Financial snapshot", `
+	// KPI money — with This Year / All Time toggle
+	const toggle = `<div class="sga-period">
+	  <button data-p="year" class="${period === "year" ? "on" : ""}">This Year</button>
+	  <button data-p="all" class="${period === "all" ? "on" : ""}">All Time</button></div>`;
+	parts.push(`<div class="sga-sec"><div class="sga-eye"><h2>Financial snapshot · ${_esc(money.period_label || "This year")}</h2><span class="rule"></span>${toggle}</div>
 	<div class="sga-grid k4">
-	  ${kpi("Invoiced", _m(money.invoiced), "Across submitted job orders", "var(--sga-brand)")}
+	  ${kpi("Invoiced", _m(money.invoiced), `${money.period_label} · submitted job orders`, "var(--sga-brand)")}
 	  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate)}
 	  ${kpi("Outstanding", _m(money.outstanding), `<span class="sga-chip warn">Invoiced minus collected</span>`, "var(--sga-orange)")}
-	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished to date`, "var(--sga-accent)")}
-	</div>`));
+	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished all‑time`, "var(--sga-accent)")}
+	</div></div>`);
 
 	// status tiles
 	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
@@ -108,7 +113,7 @@ function render($root, d) {
 	parts.push(section("Payments & services", `
 	<div class="sga-grid k2">
 	  <div class="sga-card">${donut(d.payment_status)}</div>
-	  <div class="sga-card">${hbars(d.by_service, "var(--sga-brand)")}</div>
+	  <div class="sga-card">${hbars(d.by_service, "var(--sga-brand)", "Job orders by service · all time")}</div>
 	</div>`, true));
 
 	// quick lists (recent job orders) + shortcuts/reports
@@ -156,11 +161,15 @@ function render($root, d) {
 	      ${fstep(p.awaiting_jo, "Accepted · awaiting JO")}
 	    </div>
 	  </div>
-	  <div class="sga-card">${hbars(d.by_accountant, "var(--sga-brand)")}</div>
+	  <div class="sga-card">${hbars(d.by_accountant, "var(--sga-brand)", "Current workload · active jobs, active staff")}
+	    ${d.orphan_active ? `<div class="sga-warn">⚠ ${_int(d.orphan_active)} active job orders still assigned to former staff — needs reassignment.</div>` : ""}</div>
 	</div>`));
 
-	parts.push(`<div class="sga-foot">SGA Job Orders dashboard · figures live from this site</div>`);
+	parts.push(`<div class="sga-foot">SGA Job Orders dashboard · figures live from this site · financials = ${_esc(money.period_label || "This year")}</div>`);
 	$root.html(parts.join(""));
+	$root.find(".sga-period button").on("click", function () {
+		if (typeof setPeriod === "function") setPeriod($(this).data("p"));
+	});
 }
 
 function render_limited($root, d) {
@@ -202,14 +211,14 @@ function donut(pay) {
 	  <div class="mid"><b>${paidPct}%</b><span>Paid</span></div></div>
 	  <div class="sga-legend">${legend.join("")}</div></div>`;
 }
-function hbars(rows, color) {
+function hbars(rows, color, title) {
 	rows = rows || [];
 	const max = Math.max(1, ...rows.map((r) => r.value));
 	const bars = rows.map((r) =>
 		`<div class="hbar"><div class="top"><span class="lab">${_esc(r.label)}</span><span class="val">${_int(r.value)}</span></div>
-		 <div class="track"><i style="width:${Math.max(3, (r.value / max) * 100)}%"></i></div></div>`).join("");
-	const title = rows.length && rows[0].user !== undefined ? "Workload by accountant" : "Job orders by service";
-	return `<div class="sga-eye tight"><h2>${title}</h2><span class="rule"></span></div><div class="sga-hbars">${bars}</div>`;
+		 <div class="track"><i style="width:${Math.max(3, (r.value / max) * 100)}%"></i></div></div>`).join("")
+		|| '<div class="sga-empty">No data</div>';
+	return `<div class="sga-eye tight"><h2>${_esc(title || "")}</h2><span class="rule"></span></div><div class="sga-hbars">${bars}</div>`;
 }
 function qlist(title, rows) {
 	rows = rows || [];
@@ -329,6 +338,12 @@ function inject_styles() {
 .sga-funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}@media(max-width:620px){.sga-funnel{grid-template-columns:repeat(2,1fr)}}
 .fstep{background:var(--sga-surface2);border:1px solid var(--sga-line);border-radius:11px;padding:13px}
 .fstep .v{font-size:24px;font-weight:750}.fstep .n{font-size:12px;color:var(--sga-muted);margin-top:3px}.fstep .arw{color:var(--sga-accent);font-weight:700}
+.sga-period{display:flex;border:1px solid var(--sga-line);border-radius:8px;overflow:hidden;flex:0 0 auto}
+.sga-period button{border:0;background:var(--sga-surface);color:var(--sga-muted);font-size:12px;font-weight:600;padding:5px 12px;cursor:pointer}
+.sga-period button+button{border-left:1px solid var(--sga-line)}
+.sga-period button.on{background:var(--sga-brand);color:#fff}
+.sga-warn{margin-top:12px;font-size:12px;color:var(--sga-bad);background:color-mix(in srgb,var(--sga-bad) 10%,transparent);
+ border:1px solid color-mix(in srgb,var(--sga-bad) 26%,transparent);border-radius:8px;padding:8px 10px}
 .sga-foot{margin-top:26px;text-align:center;color:var(--sga-muted);font-size:12px}
 `;
 	const s = document.createElement("style");

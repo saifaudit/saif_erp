@@ -271,11 +271,12 @@ function render_limited($root, d) {
 
 	// my attendance this month (Sundays + public holidays excluded) + recent check-ins
 	const att = d.my_attendance || {};
-	const attDefs = [["Present", "var(--sga-good)", att.Present], ["Absent", "var(--sga-bad)", att.Absent],
-		["On Leave", "var(--sga-slate2)", att["On Leave"]], ["Half Day", "var(--sga-amber)", att["Half Day"]],
-		["WFH", "var(--sga-brand-soft)", att["Work From Home"]], ["Holidays", "var(--sga-slate)", att.holidays]];
-	const attTiles = attDefs.filter(([, , v]) => v).map(([k, c, v]) =>
-		`<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(v)}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">No attendance this month</div>';
+	const attDefs = [
+		["Present", "var(--sga-good)", att.Present, true], ["Absent", "var(--sga-bad)", att.Absent, true],
+		["On Leave", "var(--sga-slate2)", att["On Leave"], false], ["Half Day", "var(--sga-amber)", att["Half Day"], false],
+		["WFH", "var(--sga-brand-soft)", att["Work From Home"], false], ["Holidays", "var(--sga-slate)", att.holidays, true]];
+	const attTiles = attDefs.filter(([, , v, always]) => always || v).map(([k, c, v]) =>
+		`<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(v || 0)}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">No attendance this month</div>';
 	const attNote = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;
 	const checkins = (d.my_checkins || []).map((c) => {
 		const io = (c.log_type || "").toUpperCase(), cls = io === "IN" ? "in" : "out";

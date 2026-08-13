@@ -18,7 +18,7 @@ ACTIVE_STATUSES = "('Open','Progress','Under Review','Awaiting Client Data','Tem
 
 
 @frappe.whitelist()
-def dashboard_data(period="year"):
+def dashboard_data(period="year", company=None):
 	"""Aggregates for the SGA dashboard. Firm-wide figures are for managers;
 	everyone else gets the header + their own recent job orders.
 
@@ -81,13 +81,34 @@ def dashboard_data(period="year"):
 			"my_counts": my_counts, "recent_mine": recent, "my_leave": my_leave,
 		}
 
+	# Optional company filter (group has multiple entities). Escaped + inlined so
+	# the DATE_FORMAT('%Y-%m') queries are unaffected by param binding.
+	comp = company if company and frappe.db.exists("Company", company) else None
+	comp_val = frappe.db.escape(comp) if comp else None
+
+	def cw(alias=None):
+		if not comp:
+			return ""
+		col = f"{alias}.company" if alias else "company"
+		return f" AND {col} = {comp_val}"
+
+	def cfilt(f):
+		if comp:
+			f = dict(f); f["company"] = comp
+		return f
+
+	companies = frappe.db.sql(
+		"select company label, count(*) n from `tabJob Order` where docstatus=1 and company is not null group by company order by n desc",
+		as_dict=True,
+	)
+
 	def kv(rows):
 		return {r["v"]: r["c"] for r in rows}
 
-	job_status = kv(frappe.db.sql(f"select job_status v, count(*) c from {jo} group by job_status", as_dict=True))
-	payment_status = kv(frappe.db.sql(f"select payment_status v, count(*) c from {jo} group by payment_status", as_dict=True))
+	job_status = kv(frappe.db.sql(f"select job_status v, count(*) c from {jo} where 1=1{cw()} group by job_status", as_dict=True))
+	payment_status = kv(frappe.db.sql(f"select payment_status v, count(*) c from {jo} where 1=1{cw()} group by payment_status", as_dict=True))
 
-	money_where = "docstatus=1" + (" AND YEAR(job_date)=YEAR(CURDATE())" if period == "year" else "")
+	money_where = "docstatus=1" + (" AND YEAR(job_date)=YEAR(CURDATE())" if period == "year" else "") + cw()
 	m = frappe.db.sql(
 		f"select sum(invoiced_amount) inv, sum(paid_amount) paid, sum(proposed_amount) prop "
 		f"from {jo} where {money_where}", as_dict=True,
@@ -103,11 +124,11 @@ def dashboard_data(period="year"):
 	by_service = frappe.db.sql(
 		f"""select coalesce(it.item_name, jo.service, 'Unknown') label, count(*) value
 		from {jo} jo left join `tabItem` it on it.name = jo.service
-		where jo.docstatus = 1 group by label order by value desc limit 8""", as_dict=True,
+		where jo.docstatus = 1{cw("jo")} group by label order by value desc limit 8""", as_dict=True,
 	)
 	by_month = frappe.db.sql(
 		f"""select DATE_FORMAT(job_date, '%Y-%m') label, count(*) value from {jo}
-		where job_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+		where job_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH){cw()}
 		group by label order by label""", as_dict=True,
 	)
 	# Current workload = ACTIVE job orders held by ACTIVE employees (excludes
@@ -116,14 +137,14 @@ def dashboard_data(period="year"):
 		f"""select e.employee_name label, count(*) value
 		from {jo} jo
 		inner join `tabEmployee` e on e.user_id = jo.accountant and e.status = 'Active'
-		where jo.docstatus = 1 and jo.job_status in {ACTIVE_STATUSES}
+		where jo.docstatus = 1 and jo.job_status in {ACTIVE_STATUSES}{cw("jo")}
 		group by e.employee_name order by value desc limit 8""", as_dict=True,
 	)
 	# Data-hygiene: active jobs still assigned to non-active (resigned) staff.
 	orphan_active = frappe.db.sql(
 		f"""select count(*) from {jo} jo
 		left join `tabEmployee` e on e.user_id = jo.accountant and e.status = 'Active'
-		where jo.docstatus = 1 and jo.job_status in {ACTIVE_STATUSES} and e.name is null""",
+		where jo.docstatus = 1 and jo.job_status in {ACTIVE_STATUSES} and e.name is null{cw("jo")}""",
 	)[0][0]
 
 	# Receivables aging (unpaid submitted job orders by invoice age)
@@ -134,7 +155,7 @@ def dashboard_data(period="year"):
 			when datediff(curdate(), invoice_date) <= 90 then '61-90'
 			else '90+' end bucket,
 			count(*) n, round(sum(balance_amount)) amt
-		from {jo} where docstatus=1 and balance_amount > 0 and invoice_date is not null
+		from {jo} where docstatus=1 and balance_amount > 0 and invoice_date is not null{cw()}
 		group by bucket""", as_dict=True,
 	)
 	order = {"0-30": 0, "31-60": 1, "61-90": 2, "90+": 3}
@@ -145,43 +166,43 @@ def dashboard_data(period="year"):
 	top_customers = frappe.db.sql(
 		f"""select c.customer_name label, count(*) value, round(sum(jo.invoiced_amount)) revenue
 		from {jo} jo left join `tabCustomer` c on c.name = jo.customer
-		where jo.docstatus=1 group by jo.customer order by value desc limit 6""", as_dict=True,
+		where jo.docstatus=1{cw("jo")} group by jo.customer order by value desc limit 6""", as_dict=True,
 	)
 
 	# Compliance snapshot (working-paper rule only applies to jobs created on/after the cutoff)
 	WP_CUTOFF = "2026-05-07"
-	sub_total = frappe.db.count("Job Order", {"docstatus": 1})
-	wp_applicable = frappe.db.count("Job Order", {"job_status": "Finished", "creation": [">=", WP_CUTOFF]})
-	wp_done = frappe.db.count("Job Order", {"job_status": "Finished", "creation": [">=", WP_CUTOFF], "audit_working_paper_created": 1})
+	sub_total = frappe.db.count("Job Order", cfilt({"docstatus": 1}))
+	wp_applicable = frappe.db.count("Job Order", cfilt({"job_status": "Finished", "creation": [">=", WP_CUTOFF]}))
+	wp_done = frappe.db.count("Job Order", cfilt({"job_status": "Finished", "creation": [">=", WP_CUTOFF], "audit_working_paper_created": 1}))
 	compliance = {
 		"total": sub_total,
-		"kyc": frappe.db.count("Job Order", {"docstatus": 1, "kyc_received": 1}),
-		"loe": frappe.db.count("Job Order", {"docstatus": 1, "loe_received": 1}),
+		"kyc": frappe.db.count("Job Order", cfilt({"docstatus": 1, "kyc_received": 1})),
+		"loe": frappe.db.count("Job Order", cfilt({"docstatus": 1, "loe_received": 1})),
 		"wp_applicable": wp_applicable, "wp_done": wp_done, "wp_pending": wp_applicable - wp_done,
 	}
 
 	# Average turnaround (finished jobs with a valid closure date)
 	t = frappe.db.sql(
 		f"""select round(avg(datediff(closure_date, job_date))) avg_days, count(*) n from {jo}
-		where job_status='Finished' and closure_date is not null and closure_date >= job_date""", as_dict=True,
+		where job_status='Finished' and closure_date is not null and closure_date >= job_date{cw()}""", as_dict=True,
 	)[0]
 	turnaround = {"avg_days": t.avg_days or 0, "n": t.n or 0}
 
 	proposals = {
-		"total": frappe.db.count("Quotation"),
-		"converted": frappe.db.count("Quotation", {"custom_job_order": ["is", "set"]}),
-		"awaiting_acceptance": frappe.db.count("Quotation", {"custom_client_acceptance_type": "Not Confirmed"}),
-		"awaiting_jo": frappe.db.count("Quotation", {"docstatus": 1, "custom_job_order": ["is", "not set"]}),
+		"total": frappe.db.count("Quotation", cfilt({})),
+		"converted": frappe.db.count("Quotation", cfilt({"custom_job_order": ["is", "set"]})),
+		"awaiting_acceptance": frappe.db.count("Quotation", cfilt({"custom_client_acceptance_type": "Not Confirmed"})),
+		"awaiting_jo": frappe.db.count("Quotation", cfilt({"docstatus": 1, "custom_job_order": ["is", "not set"]})),
 	}
 
 	def recent(status):
 		return frappe.db.sql(
-			f"select name, customer, modified from {jo} where job_status=%s order by modified desc limit 5",
+			f"select name, customer, modified from {jo} where job_status=%s{cw()} order by modified desc limit 5",
 			(status,), as_dict=True,
 		)
 
 	counts = {
-		"job_orders": frappe.db.count("Job Order"),
+		"job_orders": frappe.db.count("Job Order", cfilt({})),
 		"customers": frappe.db.count("Customer"),
 		"employees": frappe.db.count("Employee", {"status": "Active"}),
 		"proposals": proposals["total"],
@@ -197,5 +218,6 @@ def dashboard_data(period="year"):
 		"orphan_active": orphan_active, "proposals": proposals,
 		"aging": aging, "aging_total": aging_total, "top_customers": top_customers,
 		"compliance": compliance, "turnaround": turnaround,
+		"companies": companies, "company": comp,
 		"recent": {"open": recent("Open"), "progress": recent("Progress"), "finished": recent("Finished")},
 	}

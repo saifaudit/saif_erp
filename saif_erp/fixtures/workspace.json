@@ -63,5 +63,235 @@
   "shortcuts": [],
   "title": "Admin Dash",
   "type": "Workspace"
+ },
+ {
+  "app": null,
+  "charts": [
+   {
+    "chart_name": "Job order status chart",
+    "label": "Services"
+   },
+   {
+    "chart_name": "Job Order Y1",
+    "label": "Job Order Y1"
+   }
+  ],
+  "content": "[{\"id\": \"K-EYpsjBSb\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">SGA World Job Order</span>\", \"col\": 12}}, {\"id\": \"-Qj4yA4orA\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"employee name\", \"col\": 12}}, {\"id\": \"shKxj3_ueN\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Open Job Orders\", \"col\": 3}}, {\"id\": \"ilBWjGZmmP\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Progress Job Orders\", \"col\": 3}}, {\"id\": \"yw4zAXvoI9\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Data Waiting Job Orders\", \"col\": 3}}, {\"id\": \"ae3oMlIn4u\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Temporary Stopped Job Orders\", \"col\": 3}}, {\"id\": \"-HZ5z51IM0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Payment Pending\", \"col\": 3}}, {\"id\": \"3zxDb5rHDt\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Payament -Partial\", \"col\": 3}}, {\"id\": \"Nq1IkUO0bn\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Paid\", \"col\": 3}}, {\"id\": \"zacn2l8j9g\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Payment Hold/Despute\", \"col\": 3}}, {\"id\": \"fz0JsGmnhj\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"dEAW2-UQZi\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Open Job Orders\", \"col\": 4}}, {\"id\": \"f0fgFQEWmB\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Job Order Progress\", \"col\": 4}}, {\"id\": \"DXGcbkceQ2\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Finished Job Orders\", \"col\": 4}}, {\"id\": \"tqernhBkLD\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"6Wa1txjusH\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Full Job Orders List\", \"col\": 3}}, {\"id\": \"elKdmFpknx\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Credential Manager\", \"col\": 3}}, {\"id\": \"ySRX-EfNtc\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Payment Status\", \"col\": 3}}, {\"id\": \"0Rq8cEYKQL\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Create Job Order\", \"col\": 3}}, {\"id\": \"028b24f7a3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"SGA Dashboard\", \"col\": 3}}, {\"id\": \"ElHfJg1zfH\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"XvK-EhmdVn\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports -Job Order\", \"col\": 4}}, {\"id\": \"L3Px_7ARF-\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"lpQ6TSDsPl\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Services\", \"col\": 6}}, {\"id\": \"eAw5uXkkN6\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Job Order Y1\", \"col\": 6}}, {\"id\": \"0z7vedi5Ec\", \"type\": \"spacer\", \"data\": {\"col\": 12}}]",
+  "custom_blocks": [
+   {
+    "custom_block_name": "employee name",
+    "label": "employee name"
+   }
+  ],
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "external_link": null,
+  "for_user": "",
+  "hide_custom": 0,
+  "icon": "milestone",
+  "indicator_color": "",
+  "is_hidden": 0,
+  "label": "Job Orders",
+  "link_to": null,
+  "link_type": null,
+  "links": [
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "Reports -Job Order",
+    "link_count": 3,
+    "link_to": null,
+    "link_type": "DocType",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Card Break"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "Job Order Report Main",
+    "link_count": 0,
+    "link_to": "Monthly Job Order Report – Staff",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "Job Order Work Flow Report",
+    "link_count": 0,
+    "link_to": "Employee Work Flow Report",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "Job Order Contribution",
+    "link_count": 0,
+    "link_to": "My Contributor Job Orders",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   }
+  ],
+  "modified": "2026-08-13 13:47:50.442419",
+  "module": null,
+  "name": "Job Orders",
+  "number_cards": [
+   {
+    "label": "Payment Pending",
+    "number_card_name": "Payment status Pending"
+   },
+   {
+    "label": "Total Progress Job Orders",
+    "number_card_name": "Total Progress Job Orders"
+   },
+   {
+    "label": "Total Data Waiting Job Orders",
+    "number_card_name": "Total Data Waiting Job Orders"
+   },
+   {
+    "label": "Payament -Partial",
+    "number_card_name": "Payment status Partial"
+   },
+   {
+    "label": "Paid",
+    "number_card_name": "Paid"
+   },
+   {
+    "label": "Total Open Job Orders",
+    "number_card_name": "Total Open Job Orders"
+   },
+   {
+    "label": "Total Temporary Stopped Job Orders",
+    "number_card_name": "Total Temporary Stopped Job Orders"
+   },
+   {
+    "label": "Payment Hold/Despute",
+    "number_card_name": "Payment status Hold Despute"
+   }
+  ],
+  "parent_page": "",
+  "public": 1,
+  "quick_lists": [
+   {
+    "document_type": "Job Order",
+    "label": "Open Job Orders",
+    "quick_list_filter": "[[\"Job Order\",\"job_status\",\"=\",\"Open\",false]]"
+   },
+   {
+    "document_type": "Job Order",
+    "label": "Job Order Progress",
+    "quick_list_filter": "[[\"Job Order\",\"job_status\",\"=\",\"Progress\",false]]"
+   },
+   {
+    "document_type": "Job Order",
+    "label": "Finished Job Orders",
+    "quick_list_filter": "[[\"Job Order\",\"job_status\",\"=\",\"Finished\",false]]"
+   }
+  ],
+  "restrict_to_domain": null,
+  "roles": [
+   {
+    "role": "Job Order Accountant"
+   }
+  ],
+  "sequence_id": 3.0,
+  "shortcuts": [
+   {
+    "color": "Grey",
+    "doc_view": "New",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Create Job Order",
+    "link_to": "Job Order",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Blue",
+    "doc_view": "List",
+    "format": "Total: {}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Credential Manager",
+    "link_to": "Credential Manager",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Green",
+    "doc_view": "List",
+    "format": "Total: {}",
+    "icon": null,
+    "kanban_board": null,
+    "label": "Full Job Orders List",
+    "link_to": "Job Order",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": "[[\"Job Order\",\"job_status\",\"is\",\"set\",false]]",
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Grey",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Payment Status",
+    "link_to": "Payment Status Report",
+    "report_ref_doctype": "Job Order",
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "Report",
+    "url": null
+   },
+   {
+    "color": "Green",
+    "doc_view": "",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "SGA Dashboard",
+    "link_to": "sga-dashboard",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "Page",
+    "url": null
+   }
+  ],
+  "title": "Job Orders",
+  "type": "Workspace"
  }
 ]

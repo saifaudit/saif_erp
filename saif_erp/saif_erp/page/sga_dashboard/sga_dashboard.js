@@ -11,11 +11,12 @@ frappe.pages["sga-dashboard"].on_page_load = function (wrapper) {
 	const $root = $('<div class="sga-dash"></div>').appendTo(page.body);
 	$root.html('<div class="sga-loading">Loading dashboard…</div>');
 
-	let period = "year";
+	let period = "year", company = "";
 	function setPeriod(p) { period = p; load(); }
+	function setCompany(c) { company = c || ""; load(); }
 	function load() {
-		frappe.call({ method: "saif_erp.api.dashboard_data", args: { period } }).then((r) => {
-			if (r && r.message) render($root, r.message, setPeriod);
+		frappe.call({ method: "saif_erp.api.dashboard_data", args: { period, company: company || undefined } }).then((r) => {
+			if (r && r.message) render($root, r.message, { setPeriod, setCompany });
 		});
 	}
 	page.set_secondary_action("Refresh", () => load(), "refresh");
@@ -56,7 +57,9 @@ const PAY_META = [
 	["Another Choice", "var(--sga-slate2)"],
 ];
 
-function render($root, d, setPeriod) {
+function render($root, d, actions) {
+	actions = actions || {};
+	const setPeriod = actions.setPeriod;
 	if (!d.manager) return render_limited($root, d);
 	const g = d.greeting || {};
 	const money = d.money || {};
@@ -88,6 +91,15 @@ function render($root, d, setPeriod) {
 	  ${ctx(d.counts.proposals, "Proposals")}
 	  ${ctx(d.counts.credentials, "Credentials")}
 	</div>`);
+
+	// company filter (group has multiple entities)
+	if ((d.companies || []).length > 1) {
+		const opts = ['<option value="">All companies</option>'].concat(
+			(d.companies || []).map((c) => `<option value="${_esc(c.label)}" ${d.company === c.label ? "selected" : ""}>${_esc(c.label)} · ${_int(c.n)}</option>`)
+		).join("");
+		parts.push(`<div class="sga-controls"><span class="lbl">Company</span><select class="sga-company">${opts}</select>
+		  ${d.company ? `<span class="sga-scope">Showing ${_esc(d.company)} only</span>` : `<span class="sga-scope muted">All group entities</span>`}</div>`);
+	}
 
 	// KPI money — with This Year / All Time toggle
 	const toggle = `<div class="sga-period">
@@ -179,6 +191,9 @@ function render($root, d, setPeriod) {
 	$root.html(parts.join(""));
 	$root.find(".sga-period button").on("click", function () {
 		if (typeof setPeriod === "function") setPeriod($(this).data("p"));
+	});
+	$root.find(".sga-company").on("change", function () {
+		if (typeof actions.setCompany === "function") actions.setCompany($(this).val());
 	});
 }
 
@@ -367,6 +382,10 @@ function inject_styles() {
 .sga-av.init{font-weight:700;font-size:15px;color:#fff}
 .sga-ctx{display:flex;gap:26px;flex-wrap:wrap;margin:16px 4px 0}
 .sga-ctx .c{display:flex;flex-direction:column}.sga-ctx .n{font-size:19px;font-weight:650}.sga-ctx .l{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--sga-muted)}
+.sga-controls{display:flex;align-items:center;gap:12px;margin:14px 4px 0;flex-wrap:wrap}
+.sga-controls .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--sga-muted);font-weight:600}
+.sga-company{background:var(--sga-surface);color:var(--sga-ink);border:1px solid var(--sga-line);border-radius:8px;padding:6px 10px;font-size:13px;max-width:360px}
+.sga-scope{font-size:12px;color:var(--sga-brand);font-weight:600}.sga-scope.muted{color:var(--sga-muted);font-weight:500}
 .sga-sec{margin-top:26px}
 .sga-eye{display:flex;align-items:center;gap:10px;margin-bottom:12px}.sga-eye.tight{margin-bottom:14px}
 .sga-eye h2{font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--sga-muted);margin:0}

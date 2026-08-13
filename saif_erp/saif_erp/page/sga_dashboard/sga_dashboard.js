@@ -30,13 +30,20 @@ const _rel = (dt) => (dt ? frappe.datetime.comment_when(dt) : "");
 const STATUS_META = {
 	Open: { c: "var(--sga-brand-soft)", l: "Open" },
 	Progress: { c: "var(--sga-brand)", l: "In Progress" },
-	"Under Review": { c: "var(--sga-gold)", l: "Under Review" },
+	"Under Review": { c: "var(--sga-amber)", l: "Under Review" },
 	"Awaiting Client Data": { c: "var(--sga-slate2)", l: "Awaiting Client Data" },
-	"Temporarily stopped": { c: "var(--sga-amber)", l: "On Hold" },
+	"Temporarily stopped": { c: "var(--sga-orange)", l: "On Hold" },
 	Pending: { c: "var(--sga-slate)", l: "Pending" },
-	Finished: { c: "var(--sga-good)", l: "Finished" },
+	Finished: { c: "var(--sga-accent)", l: "Finished" },
 	"Closed (Failed)": { c: "var(--sga-bad)", l: "Closed (Failed)" },
 };
+const GROUP_NAME = "SGA World · SAIF Chartered Accountants";
+function avatar(g) {
+	if (g.image) return `<div class="sga-av"><img src="${_esc(g.image)}" alt=""></div>`;
+	const nm = (g.employee_name || g.full_name || "?").trim();
+	const ini = nm.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+	return `<div class="sga-av init">${_esc(ini)}</div>`;
+}
 const PAY_META = [
 	["Paid", "var(--sga-good)"],
 	["Not Paid", "var(--sga-orange)"],
@@ -56,15 +63,18 @@ function render($root, d) {
 	parts.push(`
 	<div class="sga-head">
 	  <div class="sga-brand">
-	    <div class="sga-glyph">SGA</div>
+	    <div class="sga-logo"><img src="${_esc(g.logo || "/files/logoonly200x200.png")}" alt="SGA"></div>
 	    <div>
-	      <div class="sga-bname">${_esc(g.company || "SGA World")}</div>
-	      <div class="sga-bsub">Job Order Operations</div>
+	      <div class="sga-bname">${_esc(GROUP_NAME)}</div>
+	      <div class="sga-bsub">Job Order Operations · Group View</div>
 	    </div>
 	  </div>
 	  <div class="sga-greet">
-	    <div class="g1">${_esc(g.employee_name || g.full_name || "")}</div>
-	    <div class="g2">${_esc([g.designation, g.department].filter(Boolean).join(" · "))}</div>
+	    <div class="gtext">
+	      <div class="g1">${_esc(g.employee_name || g.full_name || "")}</div>
+	      <div class="g2">${_esc([g.designation, g.company].filter(Boolean).join(" · "))}</div>
+	    </div>
+	    ${avatar(g)}
 	  </div>
 	</div>
 	<div class="sga-ctx">
@@ -81,7 +91,7 @@ function render($root, d) {
 	  ${kpi("Invoiced", _m(money.invoiced), "Across submitted job orders", "var(--sga-brand)")}
 	  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate)}
 	  ${kpi("Outstanding", _m(money.outstanding), `<span class="sga-chip warn">Invoiced minus collected</span>`, "var(--sga-orange)")}
-	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished to date`, "var(--sga-gold)")}
+	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished to date`, "var(--sga-accent)")}
 	</div>`));
 
 	// status tiles
@@ -158,10 +168,10 @@ function render_limited($root, d) {
 	const rows = (d.recent_mine || []).map((r) =>
 		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}"><span>${_esc(r.name)}</span><span class="t">${_esc(r.job_status || "")}</span></a>`).join("") || '<div class="sga-empty">No job orders assigned to you.</div>';
 	$root.html(`
-	<div class="sga-head"><div class="sga-brand"><div class="sga-glyph">SGA</div>
-	  <div><div class="sga-bname">${_esc(g.company || "SGA World")}</div><div class="sga-bsub">My Job Orders</div></div></div>
-	  <div class="sga-greet"><div class="g1">${_esc(g.employee_name || g.full_name || "")}</div>
-	  <div class="g2">${_esc(g.designation || "")}</div></div></div>
+	<div class="sga-head"><div class="sga-brand"><div class="sga-logo"><img src="${_esc(g.logo || "/files/logoonly200x200.png")}" alt="SGA"></div>
+	  <div><div class="sga-bname">${_esc(GROUP_NAME)}</div><div class="sga-bsub">My Job Orders</div></div></div>
+	  <div class="sga-greet"><div class="gtext"><div class="g1">${_esc(g.employee_name || g.full_name || "")}</div>
+	  <div class="g2">${_esc([g.designation, g.company].filter(Boolean).join(" · "))}</div></div>${avatar(g)}</div></div>
 	${section("My recent job orders", `<div class="sga-card"><div class="sga-qlist">${rows}</div></div>`)}`);
 }
 
@@ -234,7 +244,7 @@ function trend(rows) {
 	  <line class="gl" x1="0" y1="35" x2="${W}" y2="35"/><line class="gl" x1="0" y1="80" x2="${W}" y2="80"/><line class="gl" x1="0" y1="125" x2="${W}" y2="125"/>
 	  <defs><linearGradient id="sgaFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sga-brand)" stop-opacity=".26"/><stop offset="1" stop-color="var(--sga-brand)" stop-opacity="0"/></linearGradient></defs>
 	  <path fill="url(#sgaFill)" d="${area}"/><path fill="none" stroke="var(--sga-brand)" stroke-width="2.5" stroke-linejoin="round" d="${line}"/>
-	  <circle cx="${last[0].toFixed(0)}" cy="${last[1].toFixed(0)}" r="4.5" fill="var(--sga-gold)"/></svg>
+	  <circle cx="${last[0].toFixed(0)}" cy="${last[1].toFixed(0)}" r="4.5" fill="var(--sga-accent)"/></svg>
 	  <div class="xlab">${labels}</div></div>`;
 }
 
@@ -242,22 +252,29 @@ function trend(rows) {
 function inject_styles() {
 	if (document.getElementById("sga-dash-style")) return;
 	const css = `
-.sga-dash{--sga-brand:#0C5460;--sga-brand-deep:#0A3D46;--sga-brand-soft:#12707F;--sga-gold:#B98A2E;
- --sga-good:#2E7D5B;--sga-amber:#C0902F;--sga-orange:#CC6B3C;--sga-bad:#B0413A;--sga-slate:#7C8B94;--sga-slate2:#54707C;
- --sga-surface:#fff;--sga-surface2:#F5F8F7;--sga-line:#E1E7E5;--sga-ink:#16232A;--sga-ink2:#43535B;--sga-muted:#75838B;
+.sga-dash{--sga-brand:#155636;--sga-brand-deep:#0E3A22;--sga-brand-soft:#2E8B43;--sga-accent:#3DB54A;
+ --sga-good:#2E8B43;--sga-amber:#C0902F;--sga-orange:#CC6B3C;--sga-bad:#B0413A;--sga-slate:#7C8B94;--sga-slate2:#54707C;
+ --sga-surface:#fff;--sga-surface2:#F2F7F3;--sga-line:#E1E9E2;--sga-ink:#17251C;--sga-ink2:#45524A;--sga-muted:#74837A;
  font-variant-numeric:tabular-nums;color:var(--sga-ink);padding-bottom:30px}
-[data-theme="dark"] .sga-dash{--sga-brand:#3BA0AF;--sga-brand-deep:#0A2D34;--sga-brand-soft:#2C8494;--sga-gold:#D8B45A;
- --sga-good:#4FB587;--sga-amber:#DCB14E;--sga-orange:#E08B57;--sga-bad:#E0685F;--sga-slate:#8FA1AB;--sga-slate2:#A9C0CB;
- --sga-surface:#1B252B;--sga-surface2:#151E23;--sga-line:#2A363C;--sga-ink:#EAF1F0;--sga-ink2:#BCCACF;--sga-muted:#8A9BA3}
+[data-theme="dark"] .sga-dash{--sga-brand:#43B64A;--sga-brand-deep:#0C2C1A;--sga-brand-soft:#2E8B43;--sga-accent:#5CCB63;
+ --sga-good:#4FB56A;--sga-amber:#DCB14E;--sga-orange:#E08B57;--sga-bad:#E0685F;--sga-slate:#8FA1AB;--sga-slate2:#A9C0CB;
+ --sga-surface:#18211B;--sga-surface2:#121A14;--sga-line:#26332A;--sga-ink:#EAF1EC;--sga-ink2:#BCCAC0;--sga-muted:#8A9B90}
 .sga-dash a{text-decoration:none;color:inherit}
 .sga-loading,.sga-empty{color:var(--sga-muted);padding:24px 4px;font-size:14px}
 .sga-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
  background:linear-gradient(120deg,var(--sga-brand-deep),var(--sga-brand));color:#fff;border-radius:16px;padding:20px 22px;margin-top:4px}
 .sga-brand{display:flex;align-items:center;gap:12px}
-.sga-glyph{width:44px;height:44px;border-radius:11px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);
- display:grid;place-items:center;font-weight:700;font-size:18px;color:var(--sga-gold);letter-spacing:.02em}
-.sga-bname{font-size:18px;font-weight:650}.sga-bsub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.7);margin-top:2px}
-.sga-greet{text-align:right}.sga-greet .g1{font-size:15px;font-weight:600}.sga-greet .g2{font-size:12px;color:rgba(255,255,255,.72);margin-top:2px}
+.sga-logo{width:48px;height:48px;border-radius:12px;background:#fff;border:1px solid rgba(255,255,255,.4);
+ display:grid;place-items:center;padding:6px;flex:0 0 auto;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.sga-logo img{width:100%;height:100%;object-fit:contain;display:block}
+.sga-bname{font-size:18px;font-weight:650}.sga-bsub{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-top:2px}
+.sga-greet{display:flex;align-items:center;gap:12px}
+.sga-greet .gtext{text-align:right}
+.sga-greet .g1{font-size:15px;font-weight:600}.sga-greet .g2{font-size:12px;color:rgba(255,255,255,.75);margin-top:2px}
+.sga-av{width:46px;height:46px;border-radius:50%;overflow:hidden;flex:0 0 auto;border:2px solid rgba(255,255,255,.45);
+ background:rgba(255,255,255,.16);display:grid;place-items:center}
+.sga-av img{width:100%;height:100%;object-fit:cover;display:block}
+.sga-av.init{font-weight:700;font-size:15px;color:#fff}
 .sga-ctx{display:flex;gap:26px;flex-wrap:wrap;margin:16px 4px 0}
 .sga-ctx .c{display:flex;flex-direction:column}.sga-ctx .n{font-size:19px;font-weight:650}.sga-ctx .l{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--sga-muted)}
 .sga-sec{margin-top:26px}
@@ -311,7 +328,7 @@ function inject_styles() {
 .sga-trend .xlab{display:flex;justify-content:space-between;font-size:10px;color:var(--sga-muted);margin-top:4px}
 .sga-funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}@media(max-width:620px){.sga-funnel{grid-template-columns:repeat(2,1fr)}}
 .fstep{background:var(--sga-surface2);border:1px solid var(--sga-line);border-radius:11px;padding:13px}
-.fstep .v{font-size:24px;font-weight:750}.fstep .n{font-size:12px;color:var(--sga-muted);margin-top:3px}.fstep .arw{color:var(--sga-gold);font-weight:700}
+.fstep .v{font-size:24px;font-weight:750}.fstep .n{font-size:12px;color:var(--sga-muted);margin-top:3px}.fstep .arw{color:var(--sga-accent);font-weight:700}
 .sga-foot{margin-top:26px;text-align:center;color:var(--sga-muted);font-size:12px}
 `;
 	const s = document.createElement("style");

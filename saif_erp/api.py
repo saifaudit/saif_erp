@@ -24,7 +24,7 @@ def dashboard_data():
 	# ---- greeting (current user's employee card) ----
 	emp = frappe.db.get_value(
 		"Employee", {"user_id": frappe.session.user},
-		["employee_name", "designation", "company", "department"], as_dict=True,
+		["employee_name", "designation", "company", "department", "image"], as_dict=True,
 	) or {}
 	greeting = {
 		"user": frappe.session.user,
@@ -33,6 +33,8 @@ def dashboard_data():
 		"designation": emp.get("designation"),
 		"company": emp.get("company"),
 		"department": emp.get("department"),
+		"image": frappe.db.get_value("User", frappe.session.user, "user_image") or emp.get("image"),
+		"logo": frappe.db.get_single_value("Website Settings", "app_logo") or "/files/logoonly200x200.png",
 		"is_manager": manager,
 	}
 

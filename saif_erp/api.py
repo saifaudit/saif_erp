@@ -40,6 +40,10 @@ def _hr_overview():
 		others = {v["emp"] for v in upcoming if v["emp"] != u["emp"]
 		          and v["from_date"] <= u["to_date"] and v["to_date"] >= u["from_date"]}
 		u["clash"] = len(others)
+	# days each employee already has committed to current+future approved leave
+	future_by_emp = {}
+	for u in upcoming:
+		future_by_emp[u["emp"]] = future_by_emp.get(u["emp"], 0) + (u["days"] or 0)
 	# per-employee leave balances (Annual/Earned, Sick, Casual, Legacy = carried-over)
 	lts = ["Annual Leave", "Earned Leave", "Sick Leave (Medical Certificate)", "Casual Leave", "Legacy Leave"]
 	rows = frappe.db.sql(
@@ -49,7 +53,9 @@ def _hr_overview():
 		group by e.name, lle.leave_type""", {"lts": tuple(lts)}, as_dict=True)
 	bymap = {}
 	for r in rows:
-		d = bymap.setdefault(r.emp, {"emp": r.emp, "employee_name": r.nm, "company": r.co, "annual": 0, "sick": 0, "casual": 0, "legacy": 0})
+		d = bymap.setdefault(r.emp, {"emp": r.emp, "employee_name": r.nm, "company": r.co,
+		                             "annual": 0, "sick": 0, "casual": 0, "legacy": 0,
+		                             "future": future_by_emp.get(r.emp, 0)})
 		if r.lt in ("Annual Leave", "Earned Leave"):
 			d["annual"] = r.bal
 		elif "Sick" in r.lt:

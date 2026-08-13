@@ -482,10 +482,11 @@ function hrSection(hr) {
 	// leave balances table
 	const lrows = (hr.team_leave || []).map((e) => {
 		const total = (e.annual || 0) + (e.sick || 0) + (e.casual || 0) + (e.legacy || 0);
+		const fut = e.future ? `<span class="fut">${e.future}</span>` : '<span class="z">—</span>';
 		return `<tr><td>${nameL(e)}</td><td class="mut">${shortco(e.company)}</td>
-		  <td class="num">${nz(e.annual)}</td><td class="num">${nz(e.sick)}</td><td class="num">${nz(e.casual)}</td><td class="num">${nz(e.legacy)}</td><td class="num tot">${total}</td></tr>`;
+		  <td class="num">${nz(e.annual)}</td><td class="num">${nz(e.sick)}</td><td class="num">${nz(e.casual)}</td><td class="num">${nz(e.legacy)}</td><td class="num tot">${total}</td><td class="num">${fut}</td></tr>`;
 	}).join("");
-	const ltable = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Annual / Earned</th><th class="num">Sick</th><th class="num">Casual</th><th class="num">Legacy</th><th class="num">Total left</th></tr></thead><tbody>${lrows}</tbody></table>`;
+	const ltable = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Annual / Earned</th><th class="num">Sick</th><th class="num">Casual</th><th class="num">Legacy</th><th class="num">Total left</th><th class="num">Future booked</th></tr></thead><tbody>${lrows}</tbody></table>`;
 
 	// attendance table (numbers link to the filtered Attendance list)
 	const arows = (hr.team_attendance || []).map((e) =>
@@ -514,7 +515,7 @@ function hrSection(hr) {
 	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Upcoming &amp; current leave · clash check</div><div class="sga-tblwrap">${utable}</div>
 	  <div class="sga-attnote"><b>Clash</b> = other staff on approved leave at the same time — check before approving overlapping days.</div></div>
 	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team leave balances · days remaining in 2026</div><div class="sga-tblwrap">${ltable}</div>
-	  <div class="sga-attnote">Casual applies to India (T K Chandy) staff · <b>Legacy</b> = leave carried over from before this system.</div></div>
+	  <div class="sga-attnote"><b>Total left</b> already excludes future-approved leave · <b>Future booked</b> = days committed to upcoming approved leave · Casual = India staff · Legacy = carried over from before this system.</div></div>
 	<div class="sga-card" style="margin-top:14px"><div class="sga-qtitle">Team attendance · ${_esc(hr.month || "this month")}</div><div class="sga-tblwrap">${atable}</div>
 	  <div class="sga-attnote">Sundays &amp; public holidays excluded (each staff on their own UAE / India calendar).</div></div>`;
 }
@@ -645,6 +646,7 @@ function inject_styles() {
 .sga-tbl tbody tr:hover td{background:var(--sga-surface2)}
 .sga-tbl td .z{color:var(--sga-muted)}
 .sga-tbl td.tot{font-weight:700}
+.sga-tbl td .fut{color:var(--sga-amber);font-weight:600}
 .sga-tbl tr.clashrow td{background:color-mix(in srgb,var(--sga-bad) 8%,transparent)}
 .sga-tbl a.tlnk{color:inherit;border-bottom:1px dotted var(--sga-line)}
 .sga-tbl a.tlnk:hover{color:var(--sga-brand);border-bottom-color:var(--sga-brand)}

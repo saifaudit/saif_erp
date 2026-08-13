@@ -39,7 +39,7 @@ def _hr_overview():
 		group by e.name, lle.leave_type""", {"lts": tuple(lts)}, as_dict=True)
 	bymap = {}
 	for r in rows:
-		d = bymap.setdefault(r.emp, {"employee_name": r.nm, "company": r.co, "annual": 0, "sick": 0, "casual": 0, "legacy": 0})
+		d = bymap.setdefault(r.emp, {"emp": r.emp, "employee_name": r.nm, "company": r.co, "annual": 0, "sick": 0, "casual": 0, "legacy": 0})
 		if r.lt in ("Annual Leave", "Earned Leave"):
 			d["annual"] = r.bal
 		elif "Sick" in r.lt:
@@ -53,7 +53,7 @@ def _hr_overview():
 	team_attendance = []
 	for e in frappe.get_all("Employee", filters={"status": "Active"}, fields=["name", "employee_name", "company"], order_by="company, employee_name"):
 		a = _attendance_for(e.name)
-		team_attendance.append({"employee_name": e.employee_name, "company": e.company,
+		team_attendance.append({"emp": e.name, "employee_name": e.employee_name, "company": e.company,
 		                        "present": a.get("Present", 0), "absent": a.get("Absent", 0),
 		                        "on_leave": a.get("On Leave", 0), "holidays": a.get("holidays", 0),
 		                        "working_days": a.get("working_days", 0)})
@@ -85,7 +85,8 @@ def _attendance_for(emp):
 		return dt in holiday_dates or (wo_idx is not None and dt.weekday() == wo_idx)
 
 	counts = {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0, "Work From Home": 0}
-	for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date>=%s and docstatus=1", (emp, month_start), as_dict=True):
+	# cap at today — don't count future-dated attendance (e.g. long approved leaves)
+	for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date between %s and %s and docstatus=1", (emp, month_start, tdy), as_dict=True):
 		if r.status == "Absent" and is_off(frappe.utils.getdate(r.attendance_date)):
 			continue
 		counts[r.status] = counts.get(r.status, 0) + 1

@@ -484,18 +484,21 @@ function hrSection(hr) {
 	const ol = (hr.on_leave || []).map((x) =>
 		`<div class="sga-qrow"><span>${_esc(x.label)} · ${_esc(x.leave_type)}</span><span class="t">till ${_esc(fmtDate(x.to_date))}</span></div>`).join("") || '<div class="sga-empty">Nobody on leave today ✓</div>';
 
+	const nameL = (e) => `<a class="tlnk" href="${listHref("leave-allocation", { employee: e.emp })}">${_esc(e.employee_name)}</a>`;
+	const attCell = (e, status, v) => `<td class="num"><a class="tlnk" href="${listHref("attendance", { employee: e.emp, status })}">${nz(v)}</a></td>`;
+
 	// leave balances table
 	const lrows = (hr.team_leave || []).map((e) => {
 		const total = (e.annual || 0) + (e.sick || 0) + (e.casual || 0) + (e.legacy || 0);
-		return `<tr><td>${_esc(e.employee_name)}</td><td class="mut">${shortco(e.company)}</td>
+		return `<tr><td>${nameL(e)}</td><td class="mut">${shortco(e.company)}</td>
 		  <td class="num">${nz(e.annual)}</td><td class="num">${nz(e.sick)}</td><td class="num">${nz(e.casual)}</td><td class="num">${nz(e.legacy)}</td><td class="num tot">${total}</td></tr>`;
 	}).join("");
 	const ltable = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Annual / Earned</th><th class="num">Sick</th><th class="num">Casual</th><th class="num">Legacy</th><th class="num">Total left</th></tr></thead><tbody>${lrows}</tbody></table>`;
 
-	// attendance table
+	// attendance table (numbers link to the filtered Attendance list)
 	const arows = (hr.team_attendance || []).map((e) =>
-		`<tr><td>${_esc(e.employee_name)}</td><td class="mut">${shortco(e.company)}</td>
-		  <td class="num">${nz(e.present)}</td><td class="num">${nz(e.absent)}</td><td class="num">${nz(e.on_leave)}</td><td class="num">${nz(e.holidays)}</td><td class="num tot">${e.working_days}</td></tr>`).join("");
+		`<tr><td><a class="tlnk" href="${listHref("attendance", { employee: e.emp })}">${_esc(e.employee_name)}</a></td><td class="mut">${shortco(e.company)}</td>
+		  ${attCell(e, "Present", e.present)}${attCell(e, "Absent", e.absent)}${attCell(e, "On Leave", e.on_leave)}<td class="num">${nz(e.holidays)}</td><td class="num tot">${e.working_days}</td></tr>`).join("");
 	const atable = `<table class="sga-tbl"><thead><tr><th>Employee</th><th>Company</th><th class="num">Present</th><th class="num">Absent</th><th class="num">On&nbsp;Leave</th><th class="num">Holidays</th><th class="num">Working&nbsp;days</th></tr></thead><tbody>${arows}</tbody></table>`;
 
 	return `<div class="sga-hc"><span class="hc total"><b>${_int(hr.active)}</b> active staff</span>${hc}</div>
@@ -640,6 +643,9 @@ function inject_styles() {
 .sga-tbl tbody tr:hover td{background:var(--sga-surface2)}
 .sga-tbl td .z{color:var(--sga-muted)}
 .sga-tbl td.tot{font-weight:700}
+.sga-tbl a.tlnk{color:inherit;border-bottom:1px dotted var(--sga-line)}
+.sga-tbl a.tlnk:hover{color:var(--sga-brand);border-bottom-color:var(--sga-brand)}
+.sga-tbl td.num a.tlnk{border-bottom:0}.sga-tbl td.num a.tlnk:hover{text-decoration:underline}
 .sga-foot{margin-top:26px;text-align:center;color:var(--sga-muted);font-size:12px}
 `;
 	const s = document.createElement("style");

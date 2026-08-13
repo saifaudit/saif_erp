@@ -277,4 +277,10 @@ fixtures = [
 	{"doctype": "Workflow Action Master", "filters": [["name", "in", ["Request Approval", "Approve", "Reject"]]]},
 	{"doctype": "Custom Field", "filters": [["name", "=", "Job Order-workflow_state"]]},
 	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Job Order"], ["field_name", "=", "job_status"], ["property", "=", "options"]]},
+	# SAIF dashboard — Job Order number cards (extended per redesign step)
+	{"doctype": "Number Card", "filters": [["name", "in", [
+		"Approval Waiting Job Orders", "Total Open Job Orders", "Total Progress Job Orders",
+		"Total Pending Job Orders", "Total Data Waiting Job Orders", "Total Temporary Stopped Job Orders",
+		"Paid", "Payment status Partial", "Payment status Pending", "Payment status Hold Despute",
+	]]]},
 ]

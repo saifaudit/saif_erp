@@ -2,7 +2,7 @@
  {
   "app": null,
   "charts": [],
-  "content": "[{\"id\": \"28b73b4ed7\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Job Orders</b></span>\", \"col\": 12}}, {\"id\": \"a26fda5b19\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Job Orders Waiting Approval\", \"col\": 3}}, {\"id\": \"f7726778f7\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Open Job Orders\", \"col\": 3}}, {\"id\": \"41dfbc7392\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Progress Job Orders\", \"col\": 3}}, {\"id\": \"1300cc4473\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Pending Job Orders\", \"col\": 3}}, {\"id\": \"249df9d906\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Data Waiting Job Orders\", \"col\": 3}}, {\"id\": \"9d6fe0b055\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Temporary Stopped Job Orders\", \"col\": 3}}, {\"id\": \"ad4f873e9d\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Payment: Paid\", \"col\": 3}}, {\"id\": \"9ef91da7c2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Payment: Partial\", \"col\": 3}}, {\"id\": \"7703b60a49\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Payment: Not Paid\", \"col\": 3}}, {\"id\": \"fbea4a8a78\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Payment: Hold / Dispute\", \"col\": 3}}, {\"id\": \"f6c23a4366\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Proposals</b></span>\", \"col\": 12}}, {\"id\": \"a254352440\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Proposals\", \"col\": 3}}, {\"id\": \"3d23afcf79\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Proposals Converted to Job Order\", \"col\": 3}}, {\"id\": \"26397ec321\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Proposals Awaiting Client Acceptance\", \"col\": 3}}, {\"id\": \"4cb27ca267\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Accepted Proposals Awaiting Job Order\", \"col\": 3}}, {\"id\": \"7fdd9459e2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Leave</b></span>\", \"col\": 12}}, {\"id\": \"88acfe67f0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Approved Leave Days (This Year)\", \"col\": 3}}, {\"id\": \"0b0f833f13\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Leave Days Awaiting Approval\", \"col\": 3}}, {\"id\": \"dac5de0fbc\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Rejected Leave Days (This Year)\", \"col\": 3}}, {\"id\": \"572f1b02e0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Number of Employees on Leave (Today)\", \"col\": 3}}, {\"id\": \"518b067191\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Number of Employees on Leave (This Month)\", \"col\": 3}}, {\"id\": \"74d5d1aeb0\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Attendance</b></span>\", \"col\": 12}}, {\"id\": \"be7e1a32e1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Present (This Month)\", \"col\": 3}}, {\"id\": \"e937dcbc3c\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Total Absent (This Month)\", \"col\": 3}}, {\"id\": \"fe8884977c\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Late Entry (This Month)\", \"col\": 3}}, {\"id\": \"baf1472f3f\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Early Exit (This Month)\", \"col\": 3}}, {\"id\": \"8d37d85709\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": null, \"col\": 4}}, {\"id\": \"cc12097aab\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": null, \"col\": 4}}, {\"id\": \"e62638293f\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": null, \"col\": 4}}, {\"id\": \"0c0cd23af9\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": null, \"col\": 4}}, {\"id\": \"64f51373d9\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Reports &amp; Quick Actions</b></span>\", \"col\": 12}}, {\"id\": \"c9fde91c78\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Employee Leave Balance (SGA)\", \"col\": 3}}, {\"id\": \"9cf39541cd\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Job Orders\", \"col\": 3}}, {\"id\": \"88aa39f3bf\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Payment Status Report\", \"col\": 3}}]",
+  "content": "[{\"id\": \"78daf93057\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Job Orders</b></span>\", \"col\": 12}}, {\"id\": \"8f9d6402b7\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Job Orders Waiting Approval\", \"col\": 4}}, {\"id\": \"42f39f3c06\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Leave Section</b></span>\", \"col\": 12}}, {\"id\": \"9094acb96f\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Leave Days Awaiting Approval\", \"col\": 4}}, {\"id\": \"29c1229999\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Attendance</b></span>\", \"col\": 12}}, {\"id\": \"9093b651fd\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Absents\", \"col\": 4}}, {\"id\": \"dee1d9b30c\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Today's Check in\", \"col\": 4}}, {\"id\": \"0134548167\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Employee Not Checked in\", \"col\": 4}}, {\"id\": \"1b337b0bc0\", \"type\": \"quick_list\", \"data\": {\"quick_list_name\": \"Late Chek Ins\", \"col\": 4}}]",
   "custom_blocks": [],
   "docstatus": 0,
   "doctype": "Workspace",
@@ -16,7 +16,7 @@
   "link_to": null,
   "link_type": null,
   "links": [],
-  "modified": "2026-08-13 11:26:46.917520",
+  "modified": "2026-08-13 11:37:42.250562",
   "module": null,
   "name": "Admin Dash",
   "number_cards": [
@@ -26,91 +26,7 @@
    },
    {
     "label": null,
-    "number_card_name": "Total Open Job Orders"
-   },
-   {
-    "label": null,
-    "number_card_name": "Total Progress Job Orders"
-   },
-   {
-    "label": null,
-    "number_card_name": "Total Pending Job Orders"
-   },
-   {
-    "label": null,
-    "number_card_name": "Total Data Waiting Job Orders"
-   },
-   {
-    "label": null,
-    "number_card_name": "Total Temporary Stopped Job Orders"
-   },
-   {
-    "label": null,
-    "number_card_name": "Paid"
-   },
-   {
-    "label": null,
-    "number_card_name": "Payment status Partial"
-   },
-   {
-    "label": null,
-    "number_card_name": "Payment status Pending"
-   },
-   {
-    "label": null,
-    "number_card_name": "Payment status Hold Despute"
-   },
-   {
-    "label": null,
-    "number_card_name": "Total Proposals"
-   },
-   {
-    "label": null,
-    "number_card_name": "Proposal to JB"
-   },
-   {
-    "label": null,
-    "number_card_name": "Proposal waiting for client approval"
-   },
-   {
-    "label": null,
-    "number_card_name": "waiting for Job Order"
-   },
-   {
-    "label": null,
-    "number_card_name": "Leave Application"
-   },
-   {
-    "label": null,
     "number_card_name": "Leave Application -Total2"
-   },
-   {
-    "label": null,
-    "number_card_name": "Leave Application-Rejected"
-   },
-   {
-    "label": null,
-    "number_card_name": "Number of Employees on Leave (Today)"
-   },
-   {
-    "label": null,
-    "number_card_name": "Number of Employees on Leave (This Month)"
-   },
-   {
-    "label": null,
-    "number_card_name": "Total Present (This Month)"
-   },
-   {
-    "label": null,
-    "number_card_name": "Total Absent (This Month)"
-   },
-   {
-    "label": null,
-    "number_card_name": "Late Entry (This Month)"
-   },
-   {
-    "label": null,
-    "number_card_name": "Early Exit (This Month)"
    }
   ],
   "parent_page": "",
@@ -144,50 +60,7 @@
    }
   ],
   "sequence_id": 2.0,
-  "shortcuts": [
-   {
-    "color": "Grey",
-    "doc_view": "",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
-    "label": "Employee Leave Balance (SGA)",
-    "link_to": "SGA Employee Leave Balance",
-    "report_ref_doctype": "Employee",
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "Report",
-    "url": null
-   },
-   {
-    "color": "Grey",
-    "doc_view": "",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
-    "label": "Job Orders",
-    "link_to": "Job Order",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
-   },
-   {
-    "color": "Grey",
-    "doc_view": "",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
-    "label": "Payment Status Report",
-    "link_to": "Payment Status Report",
-    "report_ref_doctype": "Job Order",
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "Report",
-    "url": null
-   }
-  ],
+  "shortcuts": [],
   "title": "Admin Dash",
   "type": "Workspace"
  }

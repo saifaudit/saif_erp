@@ -220,6 +220,13 @@ function render_limited($root, d) {
 	  ${kpi("Needs attention", _int(mc.attention), `<span class="sga-chip warn">Awaiting data / on hold</span>`, "var(--sga-amber)")}
 	</div>`));
 
+	// jobs needing my attention (to-do)
+	const action = (d.my_action || []).map((r) =>
+		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}"><span>${_esc(r.name)} · <b>${_esc(r.job_status || "")}</b></span><span class="t">${_esc(_rel(r.modified))}</span></a>`).join("");
+	if (action) {
+		parts.push(section("Needs my attention", `<div class="sga-card"><div class="sga-qtitle">Awaiting client data · on hold · under review</div><div class="sga-qlist">${action}</div></div>`));
+	}
+
 	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
 	const tiles = order.filter((s) => ms[s] != null).map((s) => {
 		const m = STATUS_META[s] || { c: "var(--sga-slate)", l: s };
@@ -227,12 +234,47 @@ function render_limited($root, d) {
 	}).join("") || '<div class="sga-empty">No job orders assigned to you yet.</div>';
 	parts.push(section("My job status", `<div class="sga-stats">${tiles}</div>`));
 
+	// my throughput trend
+	if ((d.my_trend || []).length) {
+		parts.push(section("My throughput · created vs finished", `<div class="sga-card">${trend2(d.my_trend, [
+			{ key: "created", label: "Created", color: "var(--sga-slate2)" },
+			{ key: "finished", label: "Finished", color: "var(--sga-good)" }])}</div>`, true));
+	}
+
+	// my work mix + my payment status
+	const paytiles = PAY_META.filter(([k]) => (d.my_payment || {})[k]).map(([k, c]) =>
+		`<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(d.my_payment[k])}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">None</div>';
+	parts.push(section("My work mix", `<div class="sga-grid k2">
+	  <div class="sga-card">${hbars(d.my_by_service, "var(--sga-brand)", "My jobs by service")}</div>
+	  <div class="sga-card"><div class="sga-qtitle">My jobs by payment status</div><div class="sga-stats sga-stats-sm">${paytiles}</div></div>
+	</div>`));
+
+	// recent jobs + leave
 	const rows = (d.recent_mine || []).map((r) =>
 		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}"><span>${_esc(r.name)} · ${_esc(r.job_status || "")}</span><span class="t">${_esc(_rel(r.modified))}</span></a>`).join("") || '<div class="sga-empty">None</div>';
 	parts.push(section("My recent jobs & leave", `<div class="sga-grid k2">
 	  <div class="sga-card"><div class="sga-qtitle">Recent job orders</div><div class="sga-qlist">${rows}</div></div>
 	  <div class="sga-card">${myleave(d.my_leave)}</div>
 	</div>`));
+
+	// my attendance this month + recent check-ins
+	const att = d.my_attendance || {};
+	const attTiles = [["Present", "var(--sga-good)"], ["Absent", "var(--sga-bad)"], ["Half Day", "var(--sga-amber)"], ["On Leave", "var(--sga-slate2)"], ["Work From Home", "var(--sga-brand-soft)"]]
+		.filter(([k]) => att[k]).map(([k, c]) => `<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(att[k])}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">No attendance this month</div>';
+	const checkins = (d.my_checkins || []).map((c) =>
+		`<div class="sga-qrow"><span>${_esc(c.log_type || "")}</span><span class="t">${_esc(_rel(c.time))}</span></div>`).join("") || '<div class="sga-empty">No check-ins</div>';
+	parts.push(section("My attendance · this month", `<div class="sga-grid k2">
+	  <div class="sga-card"><div class="sga-qtitle">This month</div><div class="sga-stats sga-stats-sm">${attTiles}</div></div>
+	  <div class="sga-card"><div class="sga-qtitle">Recent check-ins</div><div class="sga-qlist">${checkins}</div></div>
+	</div>`));
+
+	// quick actions
+	parts.push(section("Quick actions", `<div class="sga-card"><div class="sga-links">
+	  ${shortcut("Create Job Order", "New", "/app/job-order/new", "add")}
+	  ${shortcut("My Job Orders", "", "/app/job-order?accountant=" + encodeURIComponent(g.user || ""), "list")}
+	  ${shortcut("Apply for Leave", "", "/app/leave-application/new", "calendar")}
+	  ${shortcut("My Leave Balance", "", "/app/query-report/SGA Employee Leave Balance", "small-file")}
+	</div></div>`));
 
 	parts.push(`<div class="sga-foot">Your personal view · figures cover only your own job orders</div>`);
 	$root.html(parts.join(""));
@@ -447,6 +489,7 @@ function inject_styles() {
 .sga-stat{background:var(--sga-surface);border:1px solid var(--sga-line);border-radius:11px;padding:12px;position:relative;display:block}
 .sga-stat .dot{width:9px;height:9px;border-radius:50%;position:absolute;top:13px;right:12px}
 .sga-stat .v{font-size:22px;font-weight:700}.sga-stat .n{font-size:11.5px;color:var(--sga-muted);margin-top:2px;line-height:1.3}
+.sga-stats.sga-stats-sm{grid-template-columns:repeat(3,1fr)}@media(max-width:560px){.sga-stats.sga-stats-sm{grid-template-columns:repeat(2,1fr)}}
 .sga-donwrap{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
 .sga-donut{--s:158px;width:var(--s);height:var(--s);flex:0 0 var(--s);border-radius:50%;position:relative;
  -webkit-mask:radial-gradient(circle at center,transparent 47px,#000 48px);mask:radial-gradient(circle at center,transparent 47px,#000 48px)}

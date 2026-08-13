@@ -64,8 +64,31 @@ def dashboard_data(period="year", company=None):
 			"Job Order", filters={"accountant": me},
 			fields=["name", "customer", "job_status", "modified"], order_by="modified desc", limit=10,
 		)
+		# jobs needing my attention (actionable to-do)
+		my_action = frappe.get_all(
+			"Job Order",
+			filters={"accountant": me, "job_status": ["in", ["Awaiting Client Data", "Temporarily stopped", "Under Review"]]},
+			fields=["name", "customer", "job_status", "modified"], order_by="modified desc", limit=8,
+		)
+		my_by_service = frappe.db.sql(
+			f"""select coalesce(it.item_name, jo.service, 'Unknown') label, count(*) value
+			from {jo} jo left join `tabItem` it on it.name = jo.service
+			where jo.accountant=%(me)s and jo.docstatus=1 group by label order by value desc limit 6""",
+			{"me": me}, as_dict=True,
+		)
+		my_payment = {r["v"]: r["c"] for r in frappe.db.sql(
+			f"select payment_status v, count(*) c from {jo} where accountant=%(me)s and docstatus=1 group by payment_status",
+			{"me": me}, as_dict=True,
+		)}
+		my_trend = frappe.db.sql(
+			f"""select DATE_FORMAT(job_date, '%%Y-%%m') label, count(*) created,
+				sum(case when job_status='Finished' then 1 else 0 end) finished
+			from {jo} where accountant=%(me)s and docstatus=1 and job_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+			group by label order by label""",
+			{"me": me}, as_dict=True,
+		)
 		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
-		my_leave = []
+		my_leave, my_attendance, my_checkins = [], {}, []
 		if emp:
 			my_leave = frappe.db.sql(
 				"""select leave_type,
@@ -76,9 +99,20 @@ def dashboard_data(period="year", company=None):
 				group by leave_type having allocated<>0 or taken<>0 or balance<>0""",
 				emp, as_dict=True,
 			)
+			month_start = frappe.utils.get_first_day(frappe.utils.today())
+			my_attendance = {r["v"]: r["c"] for r in frappe.db.sql(
+				"select status v, count(*) c from `tabAttendance` where employee=%s and attendance_date>=%s and docstatus=1 group by status",
+				(emp, month_start), as_dict=True,
+			)}
+			my_checkins = frappe.get_all(
+				"Employee Checkin", filters={"employee": emp},
+				fields=["log_type", "time"], order_by="time desc", limit=6,
+			)
 		return {
-			"greeting": greeting, "manager": False, "my_status": my_status,
-			"my_counts": my_counts, "recent_mine": recent, "my_leave": my_leave,
+			"greeting": greeting, "manager": False, "my_status": my_status, "my_counts": my_counts,
+			"recent_mine": recent, "my_leave": my_leave, "my_action": my_action,
+			"my_by_service": my_by_service, "my_payment": my_payment, "my_trend": my_trend,
+			"my_attendance": my_attendance, "my_checkins": my_checkins,
 		}
 
 	# Optional company filter (group has multiple entities). Escaped + inlined so

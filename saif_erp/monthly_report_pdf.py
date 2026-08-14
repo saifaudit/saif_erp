@@ -19,8 +19,14 @@ from saif_erp.saif_erp.report.sga_monthly_job_order_report import (
 	sga_monthly_job_order_report as R,
 )
 
-BRAND = "#155636"
-ACCENT = "#3DB54A"
+# restrained, professional palette (shared with the on-screen report)
+BRAND = R.C_GREEN       # deep green — headings, numbers, table header
+ACCENT = "#2E7D50"      # muted green — thin accents
+INK = "#24302A"
+MUTED = R.C_MUTED
+LINE = R.C_LINE
+TINT = R.C_TINT
+GOLD = R.C_GOLD
 
 ORG_NAMES = ("SGA World Auditing Accounting LLC SPC", "Saif Chartered Accountants")
 
@@ -79,45 +85,6 @@ def _esc(v):
 	return frappe.utils.escape_html("" if v is None else str(v))
 
 
-def _stars(n):
-	return "★" * int(n) + "☆" * (5 - int(n))
-
-
-def _leaderboard(frm, to):
-	"""Team rating table for the admin (all-staff) PDF."""
-	ratings = R.compute_team_ratings(frm, to)
-	if not ratings:
-		return ""
-	# resolve user_id -> (name, company)
-	emap = {}
-	emps = frappe.get_all(
-		"Employee", filters={"user_id": ["in", list(ratings)]},
-		fields=["user_id", "employee_name", "company"],
-	)
-	for e in emps:
-		emap[e.user_id] = (e.employee_name, e.company or "")
-	ranked = sorted(ratings.items(), key=lambda kv: kv[1]["rank"])
-	trs = []
-	for uid, m in ranked:
-		name, company = emap.get(uid, (uid, ""))
-		turn = m["avg_turn"] if m["avg_turn"] is not None else "—"
-		trs.append(
-			"<tr><td class='num'>%d</td><td>%s</td><td class='co2'>%s</td>"
-			"<td class='num'>%d</td><td class='num'>%d</td><td class='num'>%s</td>"
-			"<td class='num'>%s</td><td class='num'>%d</td><td class='st'>%s</td></tr>"
-			% (m["rank"], _esc(name), _esc(company), m["volume"], m["finished"],
-			   turn, fmt_money(m["invoiced"]), m["score"], _stars(m["stars"]))
-		)
-	return (
-		"<div class='lb'><div class='lbt'>Team Rating — this month "
-		"<span class='lbn'>(Volume 30% · Invoiced 30% · Finished 25% · Speed 15%, relative to team)</span></div>"
-		"<table class='lbtab'><thead><tr>"
-		"<th>#</th><th>Employee</th><th>Company</th><th>Works</th><th>Finished</th>"
-		"<th>Turn (d)</th><th>Invoiced</th><th>Score</th><th>Rating</th>"
-		"</tr></thead><tbody>" + "".join(trs) + "</tbody></table></div>"
-	)
-
-
 def render_html(employee=None, from_date=None, to_date=None):
 	frm, to = _period(from_date, to_date)
 	filters = frappe._dict({"from_date": frm, "to_date": to})
@@ -158,8 +125,18 @@ def render_html(employee=None, from_date=None, to_date=None):
 		"<tr><td colspan='%d' class='empty'>No job orders in this period.</td></tr>" % len(PRINT_COLS)
 	)
 
-	# admin (all-staff) view gets a team rating leaderboard
-	leaderboard = "" if employee else _leaderboard(frm, to)
+	# rating: single employee → badge (rank only for managers); admin → leaderboard
+	is_mgr = bool(R.MGMT_ROLES & set(frappe.get_roles()))
+	ratings = R.compute_team_ratings(frm, to)
+	rating_block = ""
+	if employee:
+		uid = frappe.db.get_value("Employee", employee, "user_id")
+		if uid and ratings.get(uid):
+			rating_block = ("<div class='rate'>%s</div>"
+			                % R.rating_badge_html(ratings[uid], show_rank=is_mgr))
+	elif is_mgr:
+		lb = R.leaderboard_html(ratings)
+		rating_block = ("<div class='lb'>%s</div>" % lb) if lb else ""
 
 	generated = getdate(nowdate()).strftime("%d %b %Y")
 	return f"""<!doctype html><html><head><meta charset="utf-8">
@@ -168,38 +145,37 @@ def render_html(employee=None, from_date=None, to_date=None):
   @page {{ size: A4 landscape; margin: 12mm; }}
   * {{ box-sizing: border-box; }}
   body {{ font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-         color: #222; margin: 0; padding: 18px; font-size: 12px; }}
+         color: {INK}; margin: 0; padding: 18px; font-size: 12px; }}
   .hdr {{ display:flex; justify-content:space-between; align-items:flex-end;
-         border-bottom: 3px solid {BRAND}; padding-bottom: 10px; margin-bottom: 14px; gap:16px; }}
+         border-bottom: 2px solid {BRAND}; padding-bottom: 10px; margin-bottom: 14px; gap:16px; }}
   .hdr .brand {{ display:flex; align-items:center; gap:12px; }}
-  .hdr .brand img {{ height: 50px; width:auto; }}
+  .hdr .brand img {{ height: 48px; width:auto; }}
   .hdr .brand .o1 {{ font-size:15px; font-weight:800; color:{BRAND}; letter-spacing:.2px; }}
-  .hdr .brand .o2 {{ font-size:12px; font-weight:600; color:{ACCENT}; margin-top:2px; }}
+  .hdr .brand .o2 {{ font-size:11.5px; font-weight:600; color:{MUTED}; margin-top:2px; }}
   .hdr .who {{ text-align:right; }}
-  .hdr .who .tag {{ font-size: 10px; font-weight:700; letter-spacing:1.2px;
-        text-transform:uppercase; color:{ACCENT}; }}
-  .hdr .who .name {{ font-size: 17px; font-weight:800; color:#111; margin-top:1px; }}
+  .hdr .who .tag {{ font-size: 10px; font-weight:700; letter-spacing:1.4px;
+        text-transform:uppercase; color:{MUTED}; }}
+  .hdr .who .name {{ font-size: 17px; font-weight:800; color:{INK}; margin-top:2px; }}
   .hdr .who .co {{ font-size: 11.5px; color:{BRAND}; font-weight:600; margin-top:1px; }}
-  .hdr .who .per {{ font-size: 11.5px; color:#555; margin-top:3px; }}
-  .cards {{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }}
-  .card {{ flex:1 1 120px; border:1px solid #e2e2e2; border-left:4px solid {ACCENT};
-          border-radius:6px; padding:8px 10px; background:#fafdfb; }}
-  .card .cv {{ font-size:17px; font-weight:800; color:{BRAND}; }}
-  .card .cl {{ font-size:10.5px; color:#666; margin-top:2px; text-transform:uppercase; letter-spacing:.3px; }}
-  table {{ width:100%; border-collapse:collapse; }}
-  th {{ background:{BRAND}; color:#fff; text-align:left; padding:6px 7px; font-size:11px;
-        font-weight:600; }}
-  td {{ padding:5px 7px; border-bottom:1px solid #ececec; font-size:11px; vertical-align:top; }}
-  tr:nth-child(even) td {{ background:#f7faf8; }}
-  td.num {{ text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }}
-  td.cf {{ color:#C0902F; font-weight:700; }}
-  td.empty {{ text-align:center; color:#888; padding:24px; }}
-  .foot {{ margin-top:14px; font-size:10px; color:#999; text-align:right; }}
+  .hdr .who .per {{ font-size: 11.5px; color:{MUTED}; margin-top:3px; }}
+  .rate {{ margin-bottom:14px; }}
   .lb {{ margin-bottom:16px; }}
-  .lb .lbt {{ font-size:13px; font-weight:800; color:{BRAND}; margin-bottom:6px; }}
-  .lb .lbn {{ font-size:9.5px; font-weight:500; color:#888; letter-spacing:0; }}
-  .lbtab td.co2 {{ color:#555; font-size:10px; }}
-  .lbtab td.st {{ color:#C0902F; letter-spacing:1px; white-space:nowrap; }}
+  .cards {{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }}
+  .card {{ flex:1 1 118px; border:1px solid {LINE}; border-radius:8px;
+          padding:9px 11px; background:#fff; }}
+  .card .cv {{ font-size:18px; font-weight:800; color:{BRAND}; font-variant-numeric:tabular-nums; }}
+  .card .cl {{ font-size:9.5px; color:{MUTED}; margin-top:3px; text-transform:uppercase;
+          letter-spacing:.4px; font-weight:600; }}
+  table.jobs {{ width:100%; border-collapse:collapse; }}
+  table.jobs th {{ background:{BRAND}; color:#fff; text-align:left; padding:7px 8px; font-size:10.5px;
+        font-weight:600; letter-spacing:.2px; }}
+  table.jobs td {{ padding:5px 8px; border-bottom:1px solid {LINE}; font-size:11px; vertical-align:top; }}
+  table.jobs tbody tr:nth-child(even) td {{ background:{TINT}; }}
+  table.jobs td.num {{ text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }}
+  table.jobs td.cf {{ color:{GOLD}; font-weight:700; }}
+  table.jobs td.empty {{ text-align:center; color:{MUTED}; padding:24px; }}
+  .foot {{ margin-top:14px; font-size:10px; color:{MUTED}; text-align:right;
+          border-top:1px solid {LINE}; padding-top:8px; }}
   @media print {{ body {{ padding:0; }} .noprint {{ display:none; }} }}
 </style></head><body>
   <div class="hdr">
@@ -215,9 +191,9 @@ def render_html(employee=None, from_date=None, to_date=None):
       <div class="per">{_esc(period_lbl)}</div>
     </div>
   </div>
+  {rating_block}
   <div class="cards">{cards}</div>
-  {leaderboard}
-  <table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>
+  <table class="jobs"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>
   <div class="foot">Generated {generated} · SAIF ERP</div>
 </body></html>"""
 

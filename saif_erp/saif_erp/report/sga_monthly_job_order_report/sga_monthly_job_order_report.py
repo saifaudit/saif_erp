@@ -78,8 +78,13 @@ def compute_team_ratings(frm, to):
 			m["finished"] += 1
 			m["turns"].append(date_diff(fin, getdate(r.job_date)))
 
-	# rate only CURRENTLY ACTIVE employees — resigned/left staff would otherwise
-	# pad the denominator ("#10 of 21") and appear in the leaderboard.
+	if not agg:
+		return {}
+
+	# Everyone with activity keeps a rating (so a resigned person's own report
+	# still shows a score). But the comparison BENCHMARK and the RANKING use only
+	# currently-active staff — resigned/left people don't pad "#N of M" or the
+	# leaderboard. Each rating record carries `active` so callers can filter.
 	active = {
 		e.user_id
 		for e in frappe.get_all(
@@ -87,16 +92,14 @@ def compute_team_ratings(frm, to):
 			fields=["user_id"],
 		)
 	}
-	agg = {u: m for u, m in agg.items() if u in active}
-	if not agg:
-		return {}
-
 	for m in agg.values():
 		m["avg_turn"] = round(sum(m["turns"]) / len(m["turns"])) if m["turns"] else None
-	mx = {k: max((m[k] for m in agg.values()), default=0) or 1 for k in ("volume", "invoiced", "finished")}
-	best_turn = min((m["avg_turn"] for m in agg.values() if m["avg_turn"]), default=None)
+	bench = [m for u, m in agg.items() if u in active] or list(agg.values())
+	mx = {k: max((m[k] for m in bench), default=0) or 1 for k in ("volume", "invoiced", "finished")}
+	best_turn = min((m["avg_turn"] for m in bench if m["avg_turn"]), default=None)
 
-	for m in agg.values():
+	for u, m in agg.items():
+		m["active"] = u in active
 		parts = {
 			"volume": m["volume"] / mx["volume"],
 			"invoiced": m["invoiced"] / mx["invoiced"],
@@ -107,12 +110,95 @@ def compute_team_ratings(frm, to):
 		total_w = sum(RATING_W[k] for k in parts)
 		score = sum(v * RATING_W[k] for k, v in parts.items()) / total_w
 		m["score"] = round(score * 100)
-	ranked = sorted(agg.items(), key=lambda kv: -kv[1]["score"])
-	top = ranked[0][1]["score"] or 1  # stars are relative to the team's best
+
+	# rank + stars are relative to the ACTIVE team only
+	ranked = sorted((kv for kv in agg.items() if kv[1]["active"]), key=lambda kv: -kv[1]["score"])
+	top = (ranked[0][1]["score"] if ranked else max((m["score"] for m in agg.values()), default=0)) or 1
 	for i, (_emp, m) in enumerate(ranked, 1):
 		m["rank"], m["team"] = i, len(ranked)
+	for m in agg.values():
+		m.setdefault("rank", None)
+		m.setdefault("team", len(ranked))
 		m["stars"] = max(1, min(5, round(5 * m["score"] / top)))
 	return agg
+
+
+# ---- shared, restrained palette + rating HTML (used on-screen and in the PDF) ----
+C_GREEN = "#0E4A34"
+C_GOLD = "#C08A2E"
+C_MUTED = "#78837C"
+C_LINE = "#E3E8E4"
+C_TINT = "#F4F8F5"
+
+
+def star_html(n, size=14):
+	n = int(n or 0)
+	return "".join(
+		"<span style='color:%s;font-size:%dpx;letter-spacing:1px'>&#9733;</span>"
+		% (C_GOLD if i < n else "#D7DCD8", size)
+		for i in range(5)
+	)
+
+
+def rating_badge_html(m, show_rank=True):
+	"""Compact rating badge: stars + score, optional rank."""
+	rank = ""
+	if show_rank and m.get("rank"):
+		rank = ("<span style='margin-left:12px;color:%s;font-weight:600;font-size:12px'>"
+		        "Rank #%d of %d</span>" % (C_GREEN, m["rank"], m["team"]))
+	return (
+		"<div style='display:inline-flex;align-items:center;gap:10px;padding:6px 14px;"
+		"background:%s;border:1px solid %s;border-radius:20px'>"
+		"<span style='font-size:11px;font-weight:700;letter-spacing:.6px;color:%s;"
+		"text-transform:uppercase'>Rating</span>%s"
+		"<span style='font-weight:800;color:%s;font-size:15px'>%d<span style='color:%s;"
+		"font-size:11px;font-weight:600'>/100</span></span>%s</div>"
+		% (C_TINT, C_LINE, C_MUTED, star_html(m.get("stars", 0)), C_GREEN, m.get("score", 0), C_MUTED, rank)
+	)
+
+
+def leaderboard_html(ratings):
+	"""Active-team rating table (admin view)."""
+	active = {u: m for u, m in ratings.items() if m.get("active")}
+	if not active:
+		return ""
+	emap = {
+		e.user_id: (e.employee_name, e.company or "")
+		for e in frappe.get_all("Employee", filters={"user_id": ["in", list(active)]},
+		                        fields=["user_id", "employee_name", "company"])
+	}
+	head = ("#", "Employee", "Company", "Works", "Finished", "Turn (d)", "Invoiced", "Score", "Rating")
+	th = "".join("<th style='padding:6px 8px;text-align:%s'>%s</th>"
+	             % ("right" if h in ("Works", "Finished", "Turn (d)", "Invoiced", "Score", "#") else "left", h)
+	             for h in head)
+	trs = []
+	for _u, m in sorted(active.items(), key=lambda kv: kv[1]["rank"]):
+		name, company = emap.get(_u, (_u, ""))
+		turn = m["avg_turn"] if m["avg_turn"] is not None else "—"
+		bg = C_TINT if m["rank"] % 2 == 0 else "#fff"
+		cells = [
+			("r", m["rank"]), ("l", frappe.utils.escape_html(name)),
+			("lm", frappe.utils.escape_html(company)), ("r", m["volume"]),
+			("r", m["finished"]), ("r", turn),
+			("r", frappe.utils.fmt_money(m["invoiced"])), ("r", m["score"]),
+			("st", star_html(m["stars"], 12)),
+		]
+		tds = []
+		for kind, val in cells:
+			align = "right" if kind == "r" else "left"
+			color = ";color:%s;font-size:10px" % C_MUTED if kind == "lm" else ""
+			nowrap = ";white-space:nowrap" if kind in ("r", "st") else ""
+			tds.append("<td style='padding:5px 8px;text-align:%s;border-bottom:1px solid %s%s%s'>%s</td>"
+			           % (align, C_LINE, color, nowrap, val))
+		trs.append("<tr style='background:%s'>%s</tr>" % (bg, "".join(tds)))
+	return (
+		"<div style='font-size:13px;font-weight:800;color:%s;margin:2px 0 6px'>Employee Rating "
+		"<span style='font-size:9.5px;font-weight:500;color:%s'>· Invoiced 40%% · Volume 25%% · "
+		"Finished 25%% · Speed 10%%, relative to active team</span></div>"
+		"<table style='width:100%%;border-collapse:collapse;font-size:11px'>"
+		"<thead><tr style='background:%s;color:#fff'>%s</tr></thead><tbody>%s</tbody></table>"
+		% (C_GREEN, C_MUTED, C_GREEN, th, "".join(trs))
+	)
 
 
 def get_columns():
@@ -253,39 +339,38 @@ def get_data(filters):
 	col_new = sum(d["paid_amount"] for d in this_rows)
 	inv_carr = sum(d["invoiced_amount"] for d in carr_rows)
 	col_carr = sum(d["paid_amount"] for d in carr_rows)
+	# restrained indicators: green = output/money, red = attention, grey = neutral
 	summary = [
-		{"label": _("Works handled"), "value": len(out), "datatype": "Int", "indicator": "Blue"},
-		{"label": _("New this month"), "value": this_month, "datatype": "Int", "indicator": "Blue"},
-		{"label": _("Carried forward"), "value": carried, "datatype": "Int", "indicator": "Orange"},
-		{"label": _("Single work"), "value": single, "datatype": "Int"},
-		{"label": _("Collaborated"), "value": collab, "datatype": "Int", "indicator": "Purple"},
+		{"label": _("Works handled"), "value": len(out), "datatype": "Int", "indicator": "Green"},
+		{"label": _("New this month"), "value": this_month, "datatype": "Int", "indicator": "Grey"},
+		{"label": _("Carried forward"), "value": carried, "datatype": "Int", "indicator": "Grey"},
+		{"label": _("Single work"), "value": single, "datatype": "Int", "indicator": "Grey"},
+		{"label": _("Collaborated"), "value": collab, "datatype": "Int", "indicator": "Grey"},
 		{"label": _("Finished this month"), "value": finished_period, "datatype": "Int", "indicator": "Green"},
 		{"label": _("On hold (client)"), "value": on_hold, "datatype": "Int", "indicator": "Red"},
 		{"label": _("Avg turnaround (finished, days)"), "value": avg_turn,
-		 "datatype": "Int" if turnaround else "Data"},
+		 "datatype": "Int" if turnaround else "Data", "indicator": "Grey"},
 		{"label": _("Invoiced (this month)"), "value": inv_new, "datatype": "Currency", "indicator": "Green"},
 		{"label": _("Collected (this month)"), "value": col_new, "datatype": "Currency", "indicator": "Green"},
-		{"label": _("Invoiced (carried fwd)"), "value": inv_carr, "datatype": "Currency", "indicator": "Orange"},
-		{"label": _("Collected (carried fwd)"), "value": col_carr, "datatype": "Currency", "indicator": "Orange"},
+		{"label": _("Invoiced (carried fwd)"), "value": inv_carr, "datatype": "Currency", "indicator": "Grey"},
+		{"label": _("Collected (carried fwd)"), "value": col_carr, "datatype": "Currency", "indicator": "Grey"},
 	]
 
-	# ---- relative rating (shown when the report is scoped to one employee) ----
+	# ---- who the report covers + the rating, rendered in the banner ----
 	target_uid = None
 	if filters.get("employee"):
 		target_uid = frappe.db.get_value("Employee", filters.employee, "user_id")
 	elif not is_mgr:
 		target_uid = frappe.session.user
-	if target_uid:
-		r = compute_team_ratings(frm, to).get(target_uid)
-		if r:
-			stars = "★" * r["stars"] + "☆" * (5 - r["stars"])
-			summary.insert(0, {"label": _("Rating (vs team)"),
-				"value": "%d / 100  %s" % (r["score"], stars), "datatype": "Data", "indicator": "Green"})
-			summary.insert(1, {"label": _("Team rank"),
-				"value": "#%d of %d" % (r["rank"], r["team"]), "datatype": "Data", "indicator": "Blue"})
-
-	# ---- on-screen banner naming the subject of the report ----
-	message = _banner(filters, is_mgr)
+	ratings = compute_team_ratings(frm, to)
+	rating_block = ""
+	if target_uid and ratings.get(target_uid):
+		# staff self-view drops the rank; managers viewing one employee keep it
+		rating_block = ("<div style='margin-top:8px'>%s</div>"
+		                % rating_badge_html(ratings[target_uid], show_rank=is_mgr))
+	elif not target_uid and is_mgr:  # admin all-staff view → full leaderboard
+		rating_block = "<div style='margin-top:10px'>%s</div>" % leaderboard_html(ratings)
+	message = _banner(filters, is_mgr) + rating_block
 
 	# ---- chart: workload by status ----
 	from collections import Counter

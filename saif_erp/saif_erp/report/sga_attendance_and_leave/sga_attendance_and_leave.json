@@ -11,11 +11,11 @@
  "letterhead": null,
  "modified": "2026-08-14 12:00:00.000000",
  "module": "SAIF ERP",
- "name": "SGA Attendance & Leave",
+ "name": "SGA Attendance and Leave",
  "owner": "Administrator",
  "prepared_report": 0,
  "ref_doctype": "Attendance",
- "report_name": "SGA Attendance & Leave",
+ "report_name": "SGA Attendance and Leave",
  "report_type": "Script Report",
  "roles": [
   {"role": "System Manager"},

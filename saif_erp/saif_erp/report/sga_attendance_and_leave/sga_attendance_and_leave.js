@@ -1,7 +1,7 @@
 // Copyright (c) 2026, SGA World FZ LLC and contributors
 // For license information, please see license.txt
 
-frappe.query_reports["SGA Attendance & Leave"] = {
+frappe.query_reports["SGA Attendance and Leave"] = {
 	filters: [
 		{
 			fieldname: "date",

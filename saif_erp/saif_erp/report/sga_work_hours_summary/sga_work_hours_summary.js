@@ -35,11 +35,16 @@ frappe.query_reports["SGA Work Hours Summary"] = {
 			fieldname: "min_hours",
 			label: __("Full-day hours"),
 			fieldtype: "Float",
-			default: 8,
+			default: 9,
 			// a day with fewer working hours than this is counted "short"
 		},
 	],
 	onload(report) {
+		// click a summary row's numbers/name → drill into that person's daily detail
+		report.page.wrapper.on("click", "a.sga-emp-drill", (e) => {
+			e.preventDefault();
+			report.set_filter_value("employee", $(e.currentTarget).attr("data-emp"));
+		});
 		report.page.add_inner_button(__("🖨 Printable PDF"), () => {
 			const f = report.get_filter_values();
 			frappe.call({
@@ -63,12 +68,22 @@ frappe.query_reports["SGA Work Hours Summary"] = {
 	},
 	formatter(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
-		if (data && column.fieldname === "short_days" && data.short_days) {
-			value = `<span style="color:#C0392B;font-weight:700">${value}</span>`;
+		if (!data) return value;
+		// ---- summary view: clickable drill-in on name + short/late/early ----
+		const drill = (v, cls = "") =>
+			`<a class="sga-emp-drill" data-emp="${data.employee}" style="text-decoration:none;${cls}">${v}</a>`;
+		if (data.employee && column.fieldname === "employee_name") {
+			value = drill(value, "color:#155636;font-weight:600");
 		}
-		if (data && column.fieldname === "avg_hours" && data.worked_days) {
-			const c = flt(data.avg_hours) < flt(frappe.query_report.get_filter_value("min_hours") || 8)
-				? "#C0902F" : "#0E7A3B";
+		if (data.employee && column.fieldname === "short_days") {
+			value = drill(value, data.short_days ? "color:#C0392B;font-weight:700" : "color:#8a8f8c");
+		}
+		if (data.employee && (column.fieldname === "late" || column.fieldname === "early")) {
+			value = drill(value, value && Number(data[column.fieldname]) ? "color:#C0902F;font-weight:600" : "color:#8a8f8c");
+		}
+		// ---- daily-detail view: colour the flag ----
+		if (column.fieldname === "flag" && data.flag) {
+			const c = data.flag.indexOf("Short") > -1 ? "#C0392B" : "#C0902F";
 			value = `<span style="color:${c};font-weight:600">${value}</span>`;
 		}
 		return value;

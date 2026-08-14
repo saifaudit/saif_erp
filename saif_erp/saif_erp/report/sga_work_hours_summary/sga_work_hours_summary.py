@@ -16,7 +16,7 @@ from saif_erp import api
 
 MGMT_ROLES = {"System Manager", "HR Manager", "HR User",
               "Job Order Admin", "Job Order Partner"}
-DEFAULT_FULL_DAY_HOURS = 8.0
+DEFAULT_FULL_DAY_HOURS = 9.0
 
 
 def execute(filters=None):
@@ -29,6 +29,15 @@ def execute(filters=None):
 	full_day = flt(filters.min_hours) or DEFAULT_FULL_DAY_HOURS
 
 	is_mgr = bool(MGMT_ROLES & set(frappe.get_roles()))
+
+	# A single employee → show the DAILY detail (which dates were short/late/early),
+	# not the one-row summary. Managers reach it by clicking a row; staff always
+	# see their own detail.
+	target = filters.employee if (is_mgr and filters.get("employee")) else (
+		None if is_mgr else frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name"))
+	if target:
+		return _detail(target, yr, mo, first, last, full_day)
+
 	emp_filter = {"status": "Active"}
 	if filters.get("company"):
 		emp_filter["company"] = filters.company
@@ -84,6 +93,55 @@ def execute(filters=None):
 		{"label": _("Full-day = hours ≥"), "value": full_day, "datatype": "Float", "indicator": "Grey"},
 	]
 	return get_columns(full_day), data, _banner(yr, mo, filters, is_mgr, len(data), full_day), None, summary
+
+
+def _detail(emp, yr, mo, first, last, full_day):
+	"""Daily breakdown for one employee: each attendance day with In/Out, hours
+	and a Short/Late/Early flag."""
+	name = frappe.db.get_value("Employee", emp, "employee_name") or emp
+	recs = frappe.db.sql(
+		"""select attendance_date d, status, in_time, out_time,
+			coalesce(working_hours, 0) wh, coalesce(late_entry, 0) le, coalesce(early_exit, 0) ee
+		from `tabAttendance` where employee = %s and attendance_date between %s and %s and docstatus = 1
+		order by attendance_date""", (emp, first, last), as_dict=True)
+	data, n_short, n_late, n_early = [], 0, 0, 0
+	for r in recs:
+		flags = []
+		if r.wh > 0 and r.wh < full_day:
+			flags.append("Short"); n_short += 1
+		if r.le:
+			flags.append("Late"); n_late += 1
+		if r.ee:
+			flags.append("Early"); n_early += 1
+		data.append({
+			"date": r.d, "day": getdate(r.d).strftime("%a"), "status": r.status,
+			"in_time": str(r.in_time)[11:16] if r.in_time else "",
+			"out_time": str(r.out_time)[11:16] if r.out_time else "",
+			"hours": round(flt(r.wh), 1), "flag": ", ".join(flags),
+		})
+	cols = [
+		{"label": _("Date"), "fieldname": "date", "fieldtype": "Date", "width": 95},
+		{"label": _("Day"), "fieldname": "day", "fieldtype": "Data", "width": 55},
+		{"label": _("Status"), "fieldname": "status", "fieldtype": "Data", "width": 110},
+		{"label": _("In"), "fieldname": "in_time", "fieldtype": "Data", "width": 70},
+		{"label": _("Out"), "fieldname": "out_time", "fieldtype": "Data", "width": 70},
+		{"label": _("Hours"), "fieldname": "hours", "fieldtype": "Float", "width": 75, "precision": 1},
+		{"label": _("Flag"), "fieldname": "flag", "fieldtype": "Data", "width": 160},
+	]
+	summary = [
+		{"label": _("Short days"), "value": n_short, "datatype": "Int", "indicator": "Red"},
+		{"label": _("Late in"), "value": n_late, "datatype": "Int", "indicator": "Orange"},
+		{"label": _("Early out"), "value": n_early, "datatype": "Int", "indicator": "Orange"},
+	]
+	banner = (
+		"<div style='padding:9px 14px;border-left:5px solid #3DB54A;background:#f3faf5;"
+		"border-radius:6px;margin:2px 0 4px'>"
+		"<span style='font-size:16px;font-weight:800;color:#155636'>Work Hours — Daily</span>"
+		"<span style='color:#155636;font-weight:600;margin-left:8px'>%s</span>"
+		"<span style='color:#777;margin-left:10px;font-size:12px'>%s %s · a day under %g hrs is Short · "
+		"clear the Employee filter to go back to all staff</span></div>"
+		% (frappe.utils.escape_html(name), calendar.month_name[mo], yr, full_day))
+	return cols, data, banner, None, summary
 
 
 def _short_company(company):

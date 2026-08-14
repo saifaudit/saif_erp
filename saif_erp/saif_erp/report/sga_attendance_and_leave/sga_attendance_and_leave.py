@@ -6,7 +6,7 @@ Employee filter); other staff see only themselves."""
 
 import frappe
 from frappe import _
-from frappe.utils import flt, get_first_day, getdate, nowdate
+from frappe.utils import cint, flt, getdate, nowdate
 
 from saif_erp import api
 
@@ -24,9 +24,12 @@ LEAVE_SHORT = [
 
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
-	as_of = getdate(filters.date or nowdate())
-	month = as_of.strftime("%Y-%m")
-	yend = "%s-12-31" % as_of.year
+	today = getdate(nowdate())
+	yr = cint(filters.year) or today.year
+	mo = cint(filters.month) or today.month
+	as_of = getdate("%04d-%02d-01" % (yr, mo))
+	month = "%04d-%02d" % (yr, mo)
+	yend = "%s-12-31" % yr
 
 	is_mgr = bool(MGMT_ROLES & set(frappe.get_roles()))
 	emp_filter = {"status": "Active"}

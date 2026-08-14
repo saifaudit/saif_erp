@@ -198,6 +198,93 @@ def render_html(employee=None, from_date=None, to_date=None):
 </body></html>"""
 
 
+def render_table_page(title_tag, who, sub, summary, columns, data):
+	"""Branded landscape page for ANY tabular report (cards + table). Reused by
+	the Attendance & Leave and Payroll reports."""
+	NUM = {"Int", "Float", "Currency", "Percent"}
+	cards = "".join(
+		"<div class='card'><div class='cv'>%s</div><div class='cl'>%s</div></div>"
+		% ((fmt_money(c["value"]) if c.get("datatype") == "Currency" else _esc(c["value"])), _esc(c["label"]))
+		for c in (summary or [])
+	)
+	head = "".join(
+		"<th style='text-align:%s'>%s</th>" % ("right" if c.get("fieldtype") in NUM else "left", _esc(c["label"]))
+		for c in columns
+	)
+	body_rows = []
+	for r in data:
+		tds = []
+		for c in columns:
+			f, ft = c["fieldname"], c.get("fieldtype")
+			v = r.get(f)
+			if ft in NUM:
+				cell = fmt_money(v) if ft == "Currency" else _esc(v)
+				tds.append("<td class='num'>%s</td>" % cell)
+			else:
+				tds.append("<td>%s</td>" % _esc(v))
+		body_rows.append("<tr>%s</tr>" % "".join(tds))
+	body = "".join(body_rows) or ("<tr><td colspan='%d' class='empty'>No data.</td></tr>" % len(columns))
+	generated = getdate(nowdate()).strftime("%d %b %Y")
+	return f"""<!doctype html><html><head><meta charset="utf-8">
+<title>SGA {_esc(title_tag)} — {_esc(who)}</title>
+<style>
+  @page {{ size: A4 landscape; margin: 12mm; }}
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color:{INK};
+         margin:0; padding:18px; font-size:12px; }}
+  .hdr {{ display:flex; justify-content:space-between; align-items:flex-end;
+         border-bottom:2px solid {BRAND}; padding-bottom:10px; margin-bottom:14px; gap:16px; }}
+  .hdr .brand {{ display:flex; align-items:center; gap:12px; }}
+  .hdr .brand img {{ height:48px; width:auto; }}
+  .hdr .brand .o1 {{ font-size:15px; font-weight:800; color:{BRAND}; }}
+  .hdr .brand .o2 {{ font-size:11.5px; font-weight:600; color:{MUTED}; margin-top:2px; }}
+  .hdr .who {{ text-align:right; }}
+  .hdr .who .tag {{ font-size:10px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; color:{MUTED}; }}
+  .hdr .who .name {{ font-size:17px; font-weight:800; color:{INK}; margin-top:2px; }}
+  .hdr .who .per {{ font-size:11.5px; color:{MUTED}; margin-top:3px; }}
+  .cards {{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }}
+  .card {{ flex:1 1 120px; border:1px solid {LINE}; border-radius:8px; padding:9px 11px; background:#fff; }}
+  .card .cv {{ font-size:18px; font-weight:800; color:{BRAND}; font-variant-numeric:tabular-nums; }}
+  .card .cl {{ font-size:9.5px; color:{MUTED}; margin-top:3px; text-transform:uppercase; letter-spacing:.4px; font-weight:600; }}
+  table {{ width:100%; border-collapse:collapse; }}
+  th {{ background:{BRAND}; color:#fff; padding:7px 8px; font-size:10.5px; font-weight:600; }}
+  td {{ padding:5px 8px; border-bottom:1px solid {LINE}; font-size:11px; }}
+  tbody tr:nth-child(even) td {{ background:{TINT}; }}
+  td.num {{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }}
+  td.empty {{ text-align:center; color:{MUTED}; padding:24px; }}
+  .foot {{ margin-top:14px; font-size:10px; color:{MUTED}; text-align:right; border-top:1px solid {LINE}; padding-top:8px; }}
+  @media print {{ body {{ padding:0; }} }}
+</style></head><body>
+  <div class="hdr">
+    <div class="brand"><img src="{_logo_data_uri()}" alt="logo">
+      <div><div class="o1">{_esc(ORG_NAMES[0])}</div><div class="o2">{_esc(ORG_NAMES[1])}</div></div>
+    </div>
+    <div class="who"><div class="tag">{_esc(title_tag)}</div>
+      <div class="name">{_esc(who)}</div><div class="per">{_esc(sub)}</div></div>
+  </div>
+  <div class="cards">{cards}</div>
+  <table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>
+  <div class="foot">Generated {generated} · SAIF ERP</div>
+</body></html>"""
+
+
+@frappe.whitelist()
+def attendance_preview(month=None, year=None, company=None, employee=None):
+	"""Branded HTML for the Attendance & Leave report (opened for browser Save-as-PDF)."""
+	from saif_erp.saif_erp.report.sga_attendance_and_leave import sga_attendance_and_leave as A
+
+	f = {"month": month, "year": year, "company": company, "employee": employee}
+	cols, data, _msg, _chart, summary = A.execute(f)
+	who = _("All Staff")
+	if employee:
+		who = frappe.db.get_value("Employee", employee, "employee_name") or employee
+	import calendar
+
+	sub = "%s %s · %d staff" % (calendar.month_name[cint(month) or getdate(nowdate()).month],
+	                            cint(year) or getdate(nowdate()).year, len(data))
+	return render_table_page(_("Attendance & Leave"), who, sub, summary, cols, data)
+
+
 @frappe.whitelist()
 def preview(employee=None, from_date=None, to_date=None):
 	"""Return standalone HTML; the report button opens it in a new tab to print."""

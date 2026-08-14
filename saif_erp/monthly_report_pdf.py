@@ -286,6 +286,23 @@ def attendance_preview(month=None, year=None, company=None, employee=None):
 
 
 @frappe.whitelist()
+def payroll_preview(month=None, year=None, company=None, employee=None):
+	"""Branded HTML for the Payroll Days Summary report."""
+	from saif_erp.saif_erp.report.sga_payroll_days_summary import sga_payroll_days_summary as P
+
+	f = {"month": month, "year": year, "company": company, "employee": employee}
+	cols, data, _msg, _chart, summary = P.execute(f)
+	who = _("All Staff")
+	if employee:
+		who = frappe.db.get_value("Employee", employee, "employee_name") or employee
+	import calendar
+
+	sub = "%s %s · %d staff" % (calendar.month_name[cint(month) or getdate(nowdate()).month],
+	                            cint(year) or getdate(nowdate()).year, len(data))
+	return render_table_page(_("Payroll Days"), who, sub, summary, cols, data)
+
+
+@frappe.whitelist()
 def preview(employee=None, from_date=None, to_date=None):
 	"""Return standalone HTML; the report button opens it in a new tab to print."""
 	return render_html(employee, from_date, to_date)

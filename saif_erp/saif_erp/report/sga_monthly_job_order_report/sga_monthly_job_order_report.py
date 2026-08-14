@@ -25,7 +25,8 @@ def execute(filters=None):
 		filters.from_date = get_first_day(nowdate())
 	if not filters.to_date:
 		filters.to_date = nowdate()
-	return get_columns(), get_data(filters)
+	data, summary, chart = get_data(filters)
+	return get_columns(), data, None, chart, summary
 
 
 def get_columns():
@@ -87,10 +88,11 @@ def get_data(filters):
 	rows = frappe.db.sql(sql, params, as_dict=True)
 	frm = getdate(filters.from_date)
 	tdy = getdate(nowdate())
-	out = []
+	out, agings = [], []
 	for r in rows:
 		end = r.closure_date if (r.job_status in DONE and r.closure_date) else tdy
 		aging = date_diff(end, r.job_date) if r.job_date else 0
+		agings.append(aging)
 		transfer = ""
 		if r.transferred_to or r.transferred_from:
 			transfer = ("%s → %s" % (r.transferred_from or "—", r.transferred_to or "—"))
@@ -100,10 +102,37 @@ def get_data(filters):
 		out.append({
 			"role": r.role, "job_order": r.job_order, "customer": r.customer, "service": r.service,
 			"job_status": r.job_status, "job_date": r.job_date,
-			"aging": ("%d days" % aging) if aging is not None else "",
+			"aging": ("%d days" % aging),
 			"carry_forward": "Yes" if (r.job_date and getdate(r.job_date) < frm) else "No",
 			"other_accountants": others,
 			"proposed_amount": flt(r.proposed_amount), "invoiced_amount": flt(r.invoiced_amount),
 			"paid_amount": flt(r.paid_amount), "transfer": transfer, "remarks": r.remarks,
 		})
-	return out
+
+	# ---- efficiency summary (headline numbers) ----
+	this_month = sum(1 for d in out if d["carry_forward"] == "No")
+	carried = sum(1 for d in out if d["carry_forward"] == "Yes")
+	single = sum(1 for d in out if not d["other_accountants"] and d["role"] == "Accountant")
+	collab = sum(1 for d in out if d["other_accountants"] or d["role"] == "Contributor")
+	finished = sum(1 for d in out if d["job_status"] == "Finished")
+	avg_aging = round(sum(agings) / len(agings)) if agings else 0
+	summary = [
+		{"label": _("New this month"), "value": this_month, "datatype": "Int", "indicator": "Blue"},
+		{"label": _("Carried forward"), "value": carried, "datatype": "Int", "indicator": "Orange"},
+		{"label": _("Single work"), "value": single, "datatype": "Int"},
+		{"label": _("Collaborated"), "value": collab, "datatype": "Int", "indicator": "Purple"},
+		{"label": _("Finished"), "value": finished, "datatype": "Int", "indicator": "Green"},
+		{"label": _("Avg time (days)"), "value": avg_aging, "datatype": "Int"},
+		{"label": _("Invoiced"), "value": sum(d["invoiced_amount"] for d in out), "datatype": "Currency"},
+		{"label": _("Collected"), "value": sum(d["paid_amount"] for d in out), "datatype": "Currency"},
+	]
+
+	# ---- chart: workload by status ----
+	from collections import Counter
+	sc = Counter(d["job_status"] for d in out)
+	chart = {
+		"type": "donut",
+		"data": {"labels": list(sc.keys()), "datasets": [{"name": "Jobs", "values": list(sc.values())}]},
+		"height": 260,
+	}
+	return out, summary, chart

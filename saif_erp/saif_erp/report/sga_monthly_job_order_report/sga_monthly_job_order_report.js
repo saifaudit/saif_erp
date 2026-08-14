@@ -43,6 +43,9 @@ frappe.query_reports["SGA Monthly Job Order Report"] = {
 					const w = window.open("", "_blank");
 					w.document.write(r.message);
 					w.document.close();
+					// open the browser's Save-as-PDF dialog straight away
+					w.focus();
+					setTimeout(() => w.print(), 500);
 				},
 			});
 		});

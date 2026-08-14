@@ -9,6 +9,8 @@ One renderer feeds two paths:
                   monthly auto-email attachment on production (wkhtmltopdf there).
 """
 
+import os
+
 import frappe
 from frappe import _
 from frappe.utils import flt, fmt_money, get_first_day, getdate, nowdate
@@ -19,6 +21,26 @@ from saif_erp.saif_erp.report.sga_monthly_job_order_report import (
 
 BRAND = "#155636"
 ACCENT = "#3DB54A"
+
+_HEADER_SVG = None
+
+
+def _banner_svg():
+	"""Inline the bundled SGA/SAIF brand banner (logo + both company names).
+	Inlined (not <img>) so it renders in the browser print view and in the
+	server-side wkhtmltopdf/Chrome PDF without any URL resolution."""
+	global _HEADER_SVG
+	if _HEADER_SVG is None:
+		path = os.path.join(os.path.dirname(__file__), "public", "images", "sga-header.svg")
+		try:
+			with open(path, encoding="utf-8") as fh:
+				svg = fh.read()
+			# drop the xml prolog so it embeds cleanly inside HTML
+			svg = svg.split("?>", 1)[-1] if svg.lstrip().startswith("<?xml") else svg
+			_HEADER_SVG = svg.strip()
+		except OSError:
+			_HEADER_SVG = ""
+	return _HEADER_SVG
 
 # columns shown on the printed sheet (trimmed from the 14 on-screen columns)
 PRINT_COLS = [
@@ -43,10 +65,14 @@ def _period(from_date, to_date):
 	return getdate(from_date), getdate(to_date)
 
 
-def _title_who(employee):
+def _who_and_company(employee):
+	"""Return (display name, company) for the report subject."""
 	if employee:
-		return frappe.db.get_value("Employee", employee, "employee_name") or employee
-	return _("All Staff")
+		name, company = frappe.db.get_value(
+			"Employee", employee, ["employee_name", "company"]
+		) or (employee, None)
+		return name or employee, company or ""
+	return _("All Staff"), _("All Entities")
 
 
 def _esc(v):
@@ -60,7 +86,7 @@ def render_html(employee=None, from_date=None, to_date=None):
 		filters.employee = employee
 	rows, summary, _chart = R.get_data(filters)
 
-	who = _title_who(employee)
+	who, company = _who_and_company(employee)
 	period_lbl = "%s  —  %s" % (frm.strftime("%d %b %Y"), to.strftime("%d %b %Y"))
 
 	# summary cards
@@ -102,12 +128,14 @@ def render_html(employee=None, from_date=None, to_date=None):
   body {{ font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
          color: #222; margin: 0; padding: 18px; font-size: 12px; }}
   .hdr {{ display:flex; justify-content:space-between; align-items:flex-end;
-         border-bottom: 3px solid {BRAND}; padding-bottom: 10px; margin-bottom: 14px; }}
-  .hdr .org {{ font-size: 20px; font-weight: 800; color: {BRAND}; letter-spacing:.3px; }}
-  .hdr .sub {{ font-size: 12px; color:#555; margin-top:2px; }}
+         border-bottom: 3px solid {BRAND}; padding-bottom: 10px; margin-bottom: 14px; gap:16px; }}
+  .hdr .brand svg {{ height: 52px; width:auto; display:block; }}
   .hdr .who {{ text-align:right; }}
-  .hdr .who .name {{ font-size: 16px; font-weight:700; color:#111; }}
-  .hdr .who .per {{ font-size: 12px; color:#555; margin-top:2px; }}
+  .hdr .who .tag {{ font-size: 10px; font-weight:700; letter-spacing:1.2px;
+        text-transform:uppercase; color:{ACCENT}; }}
+  .hdr .who .name {{ font-size: 17px; font-weight:800; color:#111; margin-top:1px; }}
+  .hdr .who .co {{ font-size: 11.5px; color:{BRAND}; font-weight:600; margin-top:1px; }}
+  .hdr .who .per {{ font-size: 11.5px; color:#555; margin-top:3px; }}
   .cards {{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }}
   .card {{ flex:1 1 120px; border:1px solid #e2e2e2; border-left:4px solid {ACCENT};
           border-radius:6px; padding:8px 10px; background:#fafdfb; }}
@@ -125,10 +153,13 @@ def render_html(employee=None, from_date=None, to_date=None):
   @media print {{ body {{ padding:0; }} .noprint {{ display:none; }} }}
 </style></head><body>
   <div class="hdr">
-    <div><div class="org">SGA World Auditing</div>
-      <div class="sub">Monthly Job Order Report</div></div>
-    <div class="who"><div class="name">{_esc(who)}</div>
-      <div class="per">{_esc(period_lbl)}</div></div>
+    <div class="brand">{_banner_svg()}</div>
+    <div class="who">
+      <div class="tag">Monthly Report</div>
+      <div class="name">{_esc(who)}</div>
+      <div class="co">{_esc(company)}</div>
+      <div class="per">{_esc(period_lbl)}</div>
+    </div>
   </div>
   <div class="cards">{cards}</div>
   <table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>

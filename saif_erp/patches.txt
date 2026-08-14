@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 saif_erp.patches.backfill_job_order_workflow_state
 saif_erp.patches.encrypt_credential_manager_passwords
+saif_erp.patches.retire_old_job_order_reports

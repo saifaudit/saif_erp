@@ -170,9 +170,8 @@ function render($root, d, actions) {
 	  <div class="sga-card">
 	    <div class="sga-rep-title">Reports — Job Order</div>
 	    <div class="sga-replist">
-	      ${report("Monthly Job Order Report – Staff")}
-	      ${report("Employee Work Flow Report")}
-	      ${report("My Contributor Job Orders")}
+	      ${report("SGA Monthly Job Order Report")}
+	      ${report("Payment Status Report")}
 	      ${report("SGA Employee Leave Balance")}
 	    </div>
 	  </div>

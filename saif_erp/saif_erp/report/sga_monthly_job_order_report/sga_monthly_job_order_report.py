@@ -293,13 +293,20 @@ def get_data(filters):
 	finish_log = _finish_dates(list({r.job_order for r in rows}))
 	out, turnaround = [], []  # turnaround = finished jobs with a known finish date
 	for r in rows:
+		# In the all-staff view the owner row + "Other Accountants" column already
+		# convey collaboration, so drop the redundant collaborator rows there — one
+		# row per job keeps counts, money and drill-downs consistent. In a single-
+		# person view the collaborator rows are kept (that's how they see jobs they
+		# only contributed to).
+		if users is None and r.role == "Contributor":
+			continue
 		fin = r.closure_date or finish_log.get(r.job_order)
 		fin = getdate(fin) if fin else None
 		is_done = r.job_status in DONE
 		on_hold = r.job_status in HOLD
 		end = fin if (is_done and fin) else tdy
 		aging = date_diff(end, r.job_date) if r.job_date else 0
-		if is_done and fin and r.job_date and frm <= fin <= to:
+		if is_done and fin and r.job_date and frm <= fin <= to and r.role == "Accountant":
 			turnaround.append(date_diff(fin, r.job_date))
 		transfer = ""
 		if r.transferred_to or r.transferred_from:
@@ -322,36 +329,47 @@ def get_data(filters):
 	# Money is split into THIS-PERIOD jobs vs CARRIED-FORWARD jobs so the
 	# headline figures reflect only the selected month, not value that may
 	# have been invoiced/earned in earlier months on still-open jobs.
-	this_rows = [d for d in out if d["carry_forward"] == "No"]
-	carr_rows = [d for d in out if d["carry_forward"] == "Yes"]
-	this_month = len(this_rows)
-	carried = len(carr_rows)
-	single = sum(1 for d in out if not d["other_accountants"] and d["role"] == "Accountant")
-	collab = sum(1 for d in out if d["other_accountants"] or d["role"] == "Contributor")
+	# Dedupe to job level: an owner row + a collaborator row are the SAME job, so
+	# counting rows would inflate totals (badly on wide ranges / all-staff). Counts
+	# use unique jobs; money is credited to the OWNER row only, so a job's invoiced
+	# amount is counted exactly once and never against a collaborator.
+	jobs = {}
+	for d in out:
+		if d["job_order"] not in jobs or d["role"] == "Accountant":
+			jobs[d["job_order"]] = d
+	jobs = list(jobs.values())
+	owner_rows = [d for d in out if d["role"] == "Accountant"]
+
+	this_jobs = [d for d in jobs if d["carry_forward"] == "No"]
+	carr_jobs = [d for d in jobs if d["carry_forward"] == "Yes"]
+	this_month = len(this_jobs)
+	carried = len(carr_jobs)
+	single = sum(1 for d in jobs if not d["other_accountants"] and d["role"] == "Accountant")
+	collab = sum(1 for d in jobs if d["other_accountants"] or d["role"] == "Contributor")
 	# Finished THIS PERIOD = jobs whose finish date falls inside the window
-	# (not merely "currently Finished"), so it measures output for the month.
-	finished_period = sum(1 for d in out if d["_done"] and d["_finish"] and frm <= d["_finish"] <= to)
-	on_hold = sum(1 for d in out if d["_hold"])
+	# (not merely "currently Finished"), so it measures output for the period.
+	finished_period = sum(1 for d in jobs if d["_done"] and d["_finish"] and frm <= d["_finish"] <= to)
+	on_hold = sum(1 for d in jobs if d["_hold"])
 	# fair turnaround: finished jobs with a known finish date only — excludes
 	# still-open and on-hold jobs, so client-side delays don't inflate it.
 	avg_turn = round(sum(turnaround) / len(turnaround)) if turnaround else "—"
-	inv_new = sum(d["invoiced_amount"] for d in this_rows)
-	col_new = sum(d["paid_amount"] for d in this_rows)
-	inv_carr = sum(d["invoiced_amount"] for d in carr_rows)
-	col_carr = sum(d["paid_amount"] for d in carr_rows)
+	inv_new = sum(d["invoiced_amount"] for d in owner_rows if d["carry_forward"] == "No")
+	col_new = sum(d["paid_amount"] for d in owner_rows if d["carry_forward"] == "No")
+	inv_carr = sum(d["invoiced_amount"] for d in owner_rows if d["carry_forward"] == "Yes")
+	col_carr = sum(d["paid_amount"] for d in owner_rows if d["carry_forward"] == "Yes")
 	# restrained indicators: green = output/money, red = attention, grey = neutral
 	summary = [
-		{"label": _("Works handled"), "value": len(out), "datatype": "Int", "indicator": "Green"},
-		{"label": _("New this month"), "value": this_month, "datatype": "Int", "indicator": "Grey"},
+		{"label": _("Works handled"), "value": len(jobs), "datatype": "Int", "indicator": "Green"},
+		{"label": _("New this period"), "value": this_month, "datatype": "Int", "indicator": "Grey"},
 		{"label": _("Carried forward"), "value": carried, "datatype": "Int", "indicator": "Grey"},
 		{"label": _("Single work"), "value": single, "datatype": "Int", "indicator": "Grey"},
 		{"label": _("Collaborated"), "value": collab, "datatype": "Int", "indicator": "Grey"},
-		{"label": _("Finished this month"), "value": finished_period, "datatype": "Int", "indicator": "Green"},
+		{"label": _("Finished this period"), "value": finished_period, "datatype": "Int", "indicator": "Green"},
 		{"label": _("On hold (client)"), "value": on_hold, "datatype": "Int", "indicator": "Red"},
 		{"label": _("Avg turnaround (finished, days)"), "value": avg_turn,
 		 "datatype": "Int" if turnaround else "Data", "indicator": "Grey"},
-		{"label": _("Invoiced (this month)"), "value": inv_new, "datatype": "Currency", "indicator": "Green"},
-		{"label": _("Collected (this month)"), "value": col_new, "datatype": "Currency", "indicator": "Green"},
+		{"label": _("Invoiced (this period)"), "value": inv_new, "datatype": "Currency", "indicator": "Green"},
+		{"label": _("Collected (this period)"), "value": col_new, "datatype": "Currency", "indicator": "Green"},
 		{"label": _("Invoiced (carried fwd)"), "value": inv_carr, "datatype": "Currency", "indicator": "Grey"},
 		{"label": _("Collected (carried fwd)"), "value": col_carr, "datatype": "Currency", "indicator": "Grey"},
 	]
@@ -370,7 +388,18 @@ def get_data(filters):
 		                % rating_badge_html(ratings[target_uid], show_rank=is_mgr))
 	elif not target_uid and is_mgr:  # admin all-staff view → full leaderboard
 		rating_block = "<div style='margin-top:10px'>%s</div>" % leaderboard_html(ratings)
-	message = _banner(filters, is_mgr) + rating_block
+
+	# ---- clickable drill-downs: filter the table to a category ----
+	cat = (filters.get("category") or "").strip()
+	drill = _drill_html([
+		("all", _("All"), len(jobs)),
+		("new", _("New"), this_month),
+		("carried", _("Carried fwd"), carried),
+		("finished", _("Finished"), finished_period),
+		("on_hold", _("On hold"), on_hold),
+		("collaborated", _("Collaborated"), collab),
+	], cat)
+	message = _banner(filters, is_mgr) + drill + rating_block
 
 	# ---- chart: workload by status ----
 	from collections import Counter
@@ -380,7 +409,44 @@ def get_data(filters):
 		"data": {"labels": list(sc.keys()), "datasets": [{"name": "Jobs", "values": list(sc.values())}]},
 		"height": 260,
 	}
-	return out, summary, chart, message
+
+	# apply the drill-down filter to the TABLE only (summary stays whole-period)
+	data = [d for d in out if _in_category(d, cat, frm, to)]
+	return data, summary, chart, message
+
+
+def _in_category(d, cat, frm, to):
+	if not cat or cat == "all":
+		return True
+	if cat == "new":
+		return d["carry_forward"] == "No"
+	if cat == "carried":
+		return d["carry_forward"] == "Yes"
+	if cat == "finished":
+		return bool(d["_done"] and d["_finish"] and frm <= d["_finish"] <= to)
+	if cat == "on_hold":
+		return bool(d["_hold"])
+	if cat == "collaborated":
+		return bool(d["other_accountants"] or d["role"] == "Contributor")
+	return True
+
+
+def _drill_html(items, active):
+	active = active or "all"
+	links = []
+	for key, label, val in items:
+		on = (key == active) or (active == "" and key == "all")
+		style = ("background:%s;color:#fff;" % C_GREEN) if on else ("background:%s;color:%s;" % (C_TINT, C_GREEN))
+		links.append(
+			"<a href='#' class='sga-drill' data-cat='%s' style='%s"
+			"border:1px solid %s;border-radius:14px;padding:3px 11px;margin:0 5px 4px 0;"
+			"display:inline-block;font-size:11.5px;text-decoration:none;font-weight:600'>"
+			"%s <span style='opacity:.8'>%s</span></a>"
+			% (key, style, C_LINE, frappe.utils.escape_html(label), val)
+		)
+	return ("<div style='margin-top:9px'><span style='font-size:10px;color:%s;"
+	        "text-transform:uppercase;letter-spacing:.5px;margin-right:6px'>View</span>%s</div>"
+	        % (C_MUTED, "".join(links)))
 
 
 def _banner(filters, is_mgr):

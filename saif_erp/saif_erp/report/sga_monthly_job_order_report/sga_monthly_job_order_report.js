@@ -25,8 +25,21 @@ frappe.query_reports["SGA Monthly Job Order Report"] = {
 			// Managers can pick an employee; other staff are always locked to
 			// their own jobs regardless of this filter (enforced server-side).
 		},
+		{
+			// driven by the clickable "View" chips in the banner, not shown as a box
+			fieldname: "category",
+			label: __("View"),
+			fieldtype: "Data",
+			hidden: 1,
+		},
 	],
 	onload(report) {
+		// clickable drill-down chips in the banner set the hidden category filter
+		report.page.wrapper.on("click", "a.sga-drill", (e) => {
+			e.preventDefault();
+			const cat = $(e.currentTarget).attr("data-cat") || "";
+			report.set_filter_value("category", cat === "all" ? "" : cat);
+		});
 		report.page.add_inner_button(__("🖨 Printable PDF"), () => {
 			const f = report.get_filter_values();
 			frappe.call({

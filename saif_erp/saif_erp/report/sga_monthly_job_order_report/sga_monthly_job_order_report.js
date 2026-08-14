@@ -26,6 +26,27 @@ frappe.query_reports["SGA Monthly Job Order Report"] = {
 			// their own jobs regardless of this filter (enforced server-side).
 		},
 	],
+	onload(report) {
+		report.page.add_inner_button(__("🖨 Printable PDF"), () => {
+			const f = report.get_filter_values();
+			frappe.call({
+				method: "saif_erp.monthly_report_pdf.preview",
+				args: {
+					employee: f.employee || "",
+					from_date: f.from_date || "",
+					to_date: f.to_date || "",
+				},
+				freeze: true,
+				freeze_message: __("Building printable report…"),
+				callback(r) {
+					if (!r.message) return;
+					const w = window.open("", "_blank");
+					w.document.write(r.message);
+					w.document.close();
+				},
+			});
+		});
+	},
 	formatter(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
 		if (column.fieldname === "role" && data && data.role === "Contributor") {

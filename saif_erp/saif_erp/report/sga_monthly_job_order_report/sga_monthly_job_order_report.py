@@ -145,7 +145,7 @@ def rating_badge_html(m, show_rank=True):
 	rank = ""
 	if show_rank and m.get("rank"):
 		rank = ("<span style='margin-left:12px;color:%s;font-weight:600;font-size:12px'>"
-		        "Rank #%d of %d</span>" % (C_GREEN, m["rank"], m["team"]))
+		        "Rank #%d</span>" % (C_GREEN, m["rank"]))
 	return (
 		"<div style='display:inline-flex;align-items:center;gap:10px;padding:6px 14px;"
 		"background:%s;border:1px solid %s;border-radius:20px'>"

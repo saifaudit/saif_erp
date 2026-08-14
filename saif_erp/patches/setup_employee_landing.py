@@ -1,0 +1,41 @@
+# Copyright (c) 2026, SGA World FZ LLC and contributors
+"""Post-login employee experience: land on the SGA Dashboard and hide the ERPNext
+modules staff never use from the sidebar. Idempotent; reversible (clear home_page
+back to /app, delete the added Has Role rows). DB-only for workspaces so ERPNext's
+own workspace files are never touched."""
+
+import frappe
+
+MANAGER_ROLES = ["System Manager", "Administrator", "Job Order Admin", "Job Order Partner",
+                 "HR Manager", "Accounts Manager"]
+# irrelevant-to-staff public workspaces → restricted to managers only
+HIDE = ["HR Setup", "Invoicing", "Tenure", "Recruitment", "Financial Reports", "Expenses",
+        "Selling", "Manufacturing", "Subcontracting", "Buying", "Assets", "Performance",
+        "Welcome Workspace", "Website", "Tax & Benefits", "Integrations"]
+
+
+def _ensure_ws_role(ws, role):
+	if frappe.db.exists("Has Role", {"parenttype": "Workspace", "parent": ws, "role": role}):
+		return
+	idx = frappe.db.count("Has Role", {"parenttype": "Workspace", "parent": ws}) + 1
+	frappe.db.sql(
+		"""insert into `tabHas Role`
+		(name, parent, parenttype, parentfield, role, idx, creation, modified, owner, modified_by, docstatus)
+		values (%s,%s,'Workspace','roles',%s,%s, now(), now(), 'Administrator','Administrator',0)""",
+		(frappe.generate_hash(length=10), ws, role, idx))
+
+
+def execute():
+	# 1) land on the SGA Dashboard after login
+	if frappe.db.exists("Page", "sga-dashboard"):
+		frappe.db.set_single_value("Website Settings", "home_page", "app/sga-dashboard")
+
+	# 2) hide irrelevant workspaces from staff (only where not already restricted)
+	for name in HIDE:
+		if not frappe.db.exists("Workspace", name):
+			continue
+		if frappe.get_all("Has Role", {"parenttype": "Workspace", "parent": name}, pluck="role"):
+			continue
+		for r in MANAGER_ROLES:
+			_ensure_ws_role(name, r)
+	frappe.clear_cache()

@@ -8,3 +8,4 @@ saif_erp.patches.backfill_job_order_workflow_state
 saif_erp.patches.encrypt_credential_manager_passwords
 saif_erp.patches.retire_old_job_order_reports
 saif_erp.patches.retire_obsolete_reports
+saif_erp.patches.setup_employee_landing

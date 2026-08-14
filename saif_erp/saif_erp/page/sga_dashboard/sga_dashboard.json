@@ -4,21 +4,44 @@
  "docstatus": 0,
  "doctype": "Page",
  "idx": 0,
- "modified": "2026-08-13 00:00:00",
+ "modified": "2026-08-14 15:37:27.936586",
  "modified_by": "Administrator",
  "module": "SAIF ERP",
  "name": "sga-dashboard",
  "owner": "Administrator",
  "page_name": "sga-dashboard",
  "roles": [
-  {"role": "System Manager"},
-  {"role": "Job Order Admin"},
-  {"role": "Job Order Admin Support"},
-  {"role": "Job Order Partner"},
-  {"role": "Job Order Semi Admin"},
-  {"role": "Job Order Accountant"}
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Job Order Admin"
+  },
+  {
+   "role": "Job Order Admin Support"
+  },
+  {
+   "role": "Job Order Partner"
+  },
+  {
+   "role": "Job Order Semi Admin"
+  },
+  {
+   "role": "Job Order Accountant"
+  },
+  {
+   "role": "Employee"
+  },
+  {
+   "role": "HR User"
+  },
+  {
+   "role": "HR Manager"
+  }
  ],
+ "script": null,
  "standard": "Yes",
+ "style": null,
  "system_page": 0,
  "title": "SGA Dashboard"
 }

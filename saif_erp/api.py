@@ -412,8 +412,15 @@ def dashboard_data(period="year", company=None, att_month=None):
 	active = sum(job_status.get(s, 0) for s in
 	             ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending"])
 
+	# frequently-used approval queues (mirrors the old Admin Dash tabs)
+	approvals = {
+		"jo_pending": frappe.db.count("Job Order", {"workflow_state": "Pending Approval"}),
+		"leave_pending": frappe.db.count("Leave Application", {"status": "Open"}),
+	}
+
 	return {
 		"greeting": greeting, "manager": True, "counts": counts, "money": money,
+		"approvals": approvals,
 		"active_jobs": active, "job_status": job_status, "payment_status": payment_status,
 		"by_service": by_service, "by_month": by_month, "by_accountant": by_accountant,
 		"orphan_active": orphan_active, "proposals": proposals,

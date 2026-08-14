@@ -42,6 +42,23 @@ function joHref(params) {
 const listHref = (dt, params) => "/app/" + dt + "/view/list" + (params && Object.keys(params).length ? "?" + Object.entries(params).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&") : "");
 const fmtDT = (t) => { if (!t) return ""; try { return moment(t).format("ddd D MMM · h:mm A"); } catch (e) { return _rel(t); } };
 const fmtDate = (t) => { if (!t) return ""; try { return moment(t).format("D MMM"); } catch (e) { return String(t); } };
+function quickActions(isManager) {
+	const items = [
+		["+ Leave Application", "/app/leave-application/new"],
+		["My Job Orders", joHref({})],
+		["Jobs in Progress", joHref({ job_status: "Progress" })],
+	];
+	if (isManager) {
+		items.push(
+			["+ Proposal", "/app/quotation/new"],
+			["Customers", listHref("customer", {})],
+			["Credential Manager", listHref("credential-manager", {})],
+			["Physical Files", listHref("physical-file-management", {})]
+		);
+	}
+	const st = "display:inline-block;padding:8px 13px;margin:0 8px 8px 0;background:var(--sga-brand-soft);color:var(--sga-brand);border:1px solid #d9e6df;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px";
+	return items.map(([l, h]) => `<a href="${h}" style="${st}">${_esc(l)}</a>`).join("");
+}
 
 const STATUS_META = {
 	Open: { c: "var(--sga-brand-soft)", l: "Open" },
@@ -104,6 +121,17 @@ function render($root, d, actions) {
 	  ${ctx(d.counts.proposals, "Proposals", listHref("quotation", {}))}
 	  ${ctx(d.counts.credentials, "Credentials", listHref("credential-manager", {}))}
 	</div>`);
+
+	// Approvals waiting — the frequently-used Admin Dash queues, now clickable
+	const ap = d.approvals || {};
+	parts.push(section("Approvals waiting", `
+	<div class="sga-grid k2">
+	  ${kpi("Job Orders to approve", _int(ap.jo_pending), "Pending Approval · click to review", "var(--sga-orange)", null, joHref({ workflow_state: "Pending Approval" }))}
+	  ${kpi("Leave to approve", _int(ap.leave_pending), "Open leave applications · click to review", "var(--sga-orange)", null, listHref("leave-application", { status: "Open" }))}
+	</div>`));
+
+	// Quick actions — the handy shortcuts that used to live on the Home workspace
+	parts.push(section("Quick actions", `<div class="sga-qa">${quickActions(true)}</div>`, true));
 
 	// company filter (group has multiple entities)
 	if ((d.companies || []).length > 1) {
@@ -238,6 +266,9 @@ function render_limited($root, d) {
 	  ${kpi("Finished", _int(mc.finished), "Completed by me", "var(--sga-accent)", null, joHref({ job_status: "Finished" }))}
 	  ${kpi("Needs attention", _int(mc.attention), `<span class="sga-chip warn">Awaiting data / on hold</span>`, "var(--sga-amber)", null, joHref({ job_status: "Awaiting Client Data" }))}
 	</div>`));
+
+	// quick actions for staff (apply for leave, jump to my jobs)
+	parts.push(section("Quick actions", `<div class="sga-qa">${quickActions(false)}</div>`, true));
 
 	// jobs needing my attention (to-do)
 	const action = (d.my_action || []).map((r) =>

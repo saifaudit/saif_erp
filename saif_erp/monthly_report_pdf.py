@@ -218,20 +218,26 @@ def email_pdf(employee=None, from_date=None, to_date=None):
 # `bench set-config saif_monthly_report_recipients '["a@x.com","b@y.com"]'`.
 ADMIN_RECIPIENTS = ["santhosh@saifaudit.com"]
 
-# Only employees whose user holds one of these roles get an individual email.
-# Override with site_config `saif_report_recipient_roles`.
+# A recipient must hold an accountant role. Management staff are excluded from the
+# individual report (they get the all-staff admin report instead) via an explicit
+# list — no roles are changed, so nobody's permissions/performance are affected.
 RECIPIENT_ROLES = ["Job Order Accountant"]
+MANAGEMENT_EXCLUDE = [
+	"santhosh@saifaudit.com",   # Santhosh — gets the admin report
+	"chandy@saifaudit.com",     # T K Chandy — CEO/Partner
+	"info@saifaudit.com",       # Allysa Pancho Alorro — Admin Executive
+]
+
+
+def _users_with(roles):
+	return set(frappe.get_all("Has Role", filters={"role": ["in", roles], "parenttype": "User"}, pluck="parent"))
 
 
 def _accountant_users():
-	"""User ids that hold an accountant recipient role."""
-	roles = frappe.conf.get("saif_report_recipient_roles") or RECIPIENT_ROLES
-	return set(
-		frappe.get_all(
-			"Has Role", filters={"role": ["in", roles], "parenttype": "User"},
-			pluck="parent",
-		)
-	)
+	"""Accountant-role users, minus management (who receive the admin report)."""
+	incl = frappe.conf.get("saif_report_recipient_roles") or RECIPIENT_ROLES
+	excl = frappe.conf.get("saif_report_management_exclude") or MANAGEMENT_EXCLUDE
+	return _users_with(incl) - set(excl)
 
 
 def _pdf(employee, from_date, to_date):

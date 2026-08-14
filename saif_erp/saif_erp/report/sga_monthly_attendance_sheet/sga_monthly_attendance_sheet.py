@@ -70,8 +70,11 @@ def execute(filters=None):
 				code = "H"  # public holiday
 			elif wo_idx is not None and dt.weekday() == wo_idx:
 				code = "S"  # weekly off (Sunday)
-			elif dt.weekday() == 5:  # Saturday = work-from-home by policy
-				code = {"Absent": "A", "On Leave": "L"}.get(status, "W")
+			elif dt.weekday() == 5:  # Saturday = work-from-home working day; a
+				# check-in is still required, so a checked-in day reads as W (worked
+				# from home) and no check-in stays Absent (A) — no free default.
+				code = {"Present": "W", "Work From Home": "W", "Half Day": "W",
+				        "Absent": "A", "On Leave": "L"}.get(status, "")
 			elif status:
 				code = STATUS_CODE.get(status, "")  # Mon–Fri: use the marked status
 			else:

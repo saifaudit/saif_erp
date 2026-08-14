@@ -149,23 +149,15 @@ app_license = "mit"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"saif_erp.tasks.all"
-# 	],
-# 	"daily": [
-# 		"saif_erp.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"saif_erp.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"saif_erp.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"saif_erp.tasks.monthly"
-# 	],
-# }
+# Monthly Job Order reports: 06:00 on the 1st, covering the previous month.
+# Dormant on the local bench (scheduler + email are off); fires on production.
+scheduler_events = {
+	"cron": {
+		"0 6 1 * *": [
+			"saif_erp.monthly_report_pdf.send_monthly_reports"
+		]
+	}
+}
 
 # Testing
 # -------

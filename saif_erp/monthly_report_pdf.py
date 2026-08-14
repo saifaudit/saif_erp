@@ -13,7 +13,7 @@ import os
 
 import frappe
 from frappe import _
-from frappe.utils import flt, fmt_money, get_first_day, getdate, nowdate
+from frappe.utils import add_days, cint, flt, fmt_money, get_first_day, getdate, nowdate
 
 from saif_erp.saif_erp.report.sga_monthly_job_order_report import (
 	sga_monthly_job_order_report as R,
@@ -207,7 +207,91 @@ def preview(employee=None, from_date=None, to_date=None):
 @frappe.whitelist()
 def email_pdf(employee=None, from_date=None, to_date=None):
 	"""Server-rendered PDF bytes (needs wkhtmltopdf/Chrome — present on production)."""
+	return _pdf(employee, from_date, to_date)
+
+
+# ---------------------------------------------------------------------------
+# Monthly auto-email (scheduler hook, fires on production only)
+# ---------------------------------------------------------------------------
+
+# Default admin recipients; override on a site with
+# `bench set-config saif_monthly_report_recipients '["a@x.com","b@y.com"]'`.
+ADMIN_RECIPIENTS = ["santhosh@saifaudit.com"]
+
+
+def _pdf(employee, from_date, to_date):
 	from frappe.utils.pdf import get_pdf
 
-	html = render_html(employee, from_date, to_date)
-	return get_pdf(html, options={"orientation": "Landscape"})
+	return get_pdf(render_html(employee, from_date, to_date), options={"orientation": "Landscape"})
+
+
+def _prev_month():
+	"""First and last day of the month before today."""
+	last_prev = add_days(get_first_day(nowdate()), -1)
+	return get_first_day(last_prev), last_prev
+
+
+def _emp_email(e):
+	return e.get("company_email") or e.get("user_id") or e.get("personal_email")
+
+
+def _send(recipients, subject, intro, filename, pdf):
+	frappe.sendmail(
+		recipients=recipients,
+		subject=subject,
+		message=intro,
+		attachments=[{"fname": filename, "fcontent": pdf}],
+		reference_doctype="Report",
+		reference_name="SGA Monthly Job Order Report",
+	)
+
+
+def send_monthly_reports(dry_run=False):
+	"""Scheduled on the 1st: email the previous month's report — the all-staff
+	PDF to the admins, and each active employee their own PDF. `dry_run` builds
+	the HTML and lists recipients WITHOUT rendering PDFs or sending (so it can be
+	checked on the local bench, which has no PDF engine and no outgoing email)."""
+	dry_run = cint(dry_run)
+	frm, to = _prev_month()
+	label = frm.strftime("%B %Y")
+	out = {"period": "%s → %s" % (frm, to), "label": label, "dry_run": bool(dry_run),
+	       "admin": None, "staff": []}
+
+	admins = frappe.conf.get("saif_monthly_report_recipients") or ADMIN_RECIPIENTS
+	if admins:
+		if dry_run:
+			out["admin"] = {"to": admins, "html_bytes": len(render_html(None, frm, to))}
+		else:
+			_send(admins, "SAIF Job Order Report — %s (All Staff)" % label,
+			      "<p>Attached is the all-staff Job Order report for <b>%s</b>.</p>" % label,
+			      "Job Order Report - All Staff - %s.pdf" % label, _pdf(None, frm, to))
+			out["admin"] = {"to": admins, "sent": True}
+
+	emps = frappe.get_all(
+		"Employee", filters={"status": "Active"},
+		fields=["name", "employee_name", "user_id", "company_email", "personal_email"],
+	)
+	for e in emps:
+		addr = _emp_email(e)
+		if not addr or "@" not in addr:
+			continue
+		rows, _s, _c, _m = R.get_data(frappe._dict({"from_date": frm, "to_date": to, "employee": e.name}))
+		if not rows:  # nothing to report this month — skip
+			continue
+		rec = {"employee": e.employee_name, "to": addr, "rows": len(rows)}
+		if not dry_run:
+			_send([addr], "Your Job Order Report — %s" % label,
+			      "<p>Hi %s,</p><p>Attached is your Job Order report for <b>%s</b>.</p>"
+			      % (frappe.utils.escape_html(e.employee_name), label),
+			      "Job Order Report - %s - %s.pdf" % (e.employee_name, label),
+			      _pdf(e.name, frm, to))
+			rec["sent"] = True
+		out["staff"].append(rec)
+	return out
+
+
+@frappe.whitelist()
+def run_monthly_reports_now(dry_run=1):
+	"""Manual trigger for admins to test on production (or dry-run anywhere)."""
+	frappe.only_for("System Manager")
+	return send_monthly_reports(dry_run=dry_run)

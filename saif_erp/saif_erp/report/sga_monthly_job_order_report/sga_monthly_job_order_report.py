@@ -110,12 +110,21 @@ def get_data(filters):
 		})
 
 	# ---- efficiency summary (headline numbers) ----
-	this_month = sum(1 for d in out if d["carry_forward"] == "No")
-	carried = sum(1 for d in out if d["carry_forward"] == "Yes")
+	# Money is split into THIS-PERIOD jobs vs CARRIED-FORWARD jobs so the
+	# headline figures reflect only the selected month, not value that may
+	# have been invoiced/earned in earlier months on still-open jobs.
+	this_rows = [d for d in out if d["carry_forward"] == "No"]
+	carr_rows = [d for d in out if d["carry_forward"] == "Yes"]
+	this_month = len(this_rows)
+	carried = len(carr_rows)
 	single = sum(1 for d in out if not d["other_accountants"] and d["role"] == "Accountant")
 	collab = sum(1 for d in out if d["other_accountants"] or d["role"] == "Contributor")
 	finished = sum(1 for d in out if d["job_status"] == "Finished")
 	avg_aging = round(sum(agings) / len(agings)) if agings else 0
+	inv_new = sum(d["invoiced_amount"] for d in this_rows)
+	col_new = sum(d["paid_amount"] for d in this_rows)
+	inv_carr = sum(d["invoiced_amount"] for d in carr_rows)
+	col_carr = sum(d["paid_amount"] for d in carr_rows)
 	summary = [
 		{"label": _("New this month"), "value": this_month, "datatype": "Int", "indicator": "Blue"},
 		{"label": _("Carried forward"), "value": carried, "datatype": "Int", "indicator": "Orange"},
@@ -123,8 +132,10 @@ def get_data(filters):
 		{"label": _("Collaborated"), "value": collab, "datatype": "Int", "indicator": "Purple"},
 		{"label": _("Finished"), "value": finished, "datatype": "Int", "indicator": "Green"},
 		{"label": _("Avg time (days)"), "value": avg_aging, "datatype": "Int"},
-		{"label": _("Invoiced"), "value": sum(d["invoiced_amount"] for d in out), "datatype": "Currency"},
-		{"label": _("Collected"), "value": sum(d["paid_amount"] for d in out), "datatype": "Currency"},
+		{"label": _("Invoiced (this month)"), "value": inv_new, "datatype": "Currency", "indicator": "Green"},
+		{"label": _("Collected (this month)"), "value": col_new, "datatype": "Currency", "indicator": "Green"},
+		{"label": _("Invoiced (carried fwd)"), "value": inv_carr, "datatype": "Currency", "indicator": "Orange"},
+		{"label": _("Collected (carried fwd)"), "value": col_carr, "datatype": "Currency", "indicator": "Orange"},
 	]
 
 	# ---- chart: workload by status ----

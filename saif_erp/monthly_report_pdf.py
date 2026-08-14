@@ -123,7 +123,7 @@ def render_html(employee=None, from_date=None, to_date=None):
 	filters = frappe._dict({"from_date": frm, "to_date": to})
 	if employee:
 		filters.employee = employee
-	rows, summary, _chart = R.get_data(filters)
+	rows, summary, _chart, _msg = R.get_data(filters)
 
 	who, company = _who_and_company(employee)
 	period_lbl = "%s  —  %s" % (frm.strftime("%d %b %Y"), to.strftime("%d %b %Y"))

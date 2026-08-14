@@ -30,8 +30,8 @@ def execute(filters=None):
 		filters.from_date = get_first_day(nowdate())
 	if not filters.to_date:
 		filters.to_date = nowdate()
-	data, summary, chart = get_data(filters)
-	return get_columns(), data, None, chart, summary
+	data, summary, chart, message = get_data(filters)
+	return get_columns(), data, message, chart, summary
 
 
 # relative-rating weights (Balanced). Speed's weight is redistributed to the
@@ -271,6 +271,9 @@ def get_data(filters):
 			summary.insert(1, {"label": _("Team rank"),
 				"value": "#%d of %d" % (r["rank"], r["team"]), "datatype": "Data", "indicator": "Blue"})
 
+	# ---- on-screen banner naming the subject of the report ----
+	message = _banner(filters, is_mgr)
+
 	# ---- chart: workload by status ----
 	from collections import Counter
 	sc = Counter(d["job_status"] for d in out)
@@ -279,4 +282,28 @@ def get_data(filters):
 		"data": {"labels": list(sc.keys()), "datasets": [{"name": "Jobs", "values": list(sc.values())}]},
 		"height": 260,
 	}
-	return out, summary, chart
+	return out, summary, chart, message
+
+
+def _banner(filters, is_mgr):
+	"""HTML banner shown above the report naming who/what it covers."""
+	name, company = _("All Staff"), _("All Entities")
+	emp = filters.get("employee")
+	if not emp and not is_mgr:
+		emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+	if emp:
+		row = frappe.db.get_value("Employee", emp, ["employee_name", "company"])
+		if row:
+			name, company = row[0] or emp, row[1] or ""
+	period = "%s — %s" % (getdate(filters.from_date).strftime("%d %b %Y"),
+	                      getdate(filters.to_date).strftime("%d %b %Y"))
+	return (
+		"<div style='padding:9px 14px;border-left:5px solid #3DB54A;background:#f3faf5;"
+		"border-radius:6px;margin:2px 0 4px'>"
+		"<span style='font-size:16px;font-weight:800;color:#155636'>%s</span>"
+		"<span style='color:#155636;font-weight:600'>%s</span>"
+		"<span style='color:#777;margin-left:10px;font-size:12px'>%s</span></div>"
+		% (frappe.utils.escape_html(name),
+		   ("  ·  " + frappe.utils.escape_html(company)) if company else "",
+		   frappe.utils.escape_html(period))
+	)

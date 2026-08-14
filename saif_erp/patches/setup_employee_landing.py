@@ -26,9 +26,11 @@ def _ensure_ws_role(ws, role):
 
 
 def execute():
-	# 1) land on the SGA Dashboard after login
+	# 1) land on the SGA Dashboard after login — the desk home is the
+	# `desktop:home_page` default (boot loads it as a Page), NOT the website
+	# home_page (which desk users bypass).
 	if frappe.db.exists("Page", "sga-dashboard"):
-		frappe.db.set_single_value("Website Settings", "home_page", "app/sga-dashboard")
+		frappe.db.set_default("desktop:home_page", "sga-dashboard")
 
 	# 2) hide irrelevant workspaces from staff (only where not already restricted)
 	for name in HIDE:

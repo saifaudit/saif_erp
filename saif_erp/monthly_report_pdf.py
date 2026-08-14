@@ -315,6 +315,23 @@ def attendance_sheet_preview(month=None, year=None, company=None, employee=None)
 
 
 @frappe.whitelist()
+def work_hours_preview(month=None, year=None, company=None, employee=None, min_hours=None):
+	"""Branded HTML for the Work Hours Summary report."""
+	from saif_erp.saif_erp.report.sga_work_hours_summary import sga_work_hours_summary as WH
+
+	f = {"month": month, "year": year, "company": company, "employee": employee, "min_hours": min_hours}
+	cols, data, _msg, _chart, summary = WH.execute(f)
+	who = _("All Staff")
+	if employee:
+		who = frappe.db.get_value("Employee", employee, "employee_name") or employee
+	import calendar
+
+	sub = "%s %s · %d staff" % (calendar.month_name[cint(month) or getdate(nowdate()).month],
+	                            cint(year) or getdate(nowdate()).year, len(data))
+	return render_table_page(_("Work Hours"), who, sub, summary, cols, data)
+
+
+@frappe.whitelist()
 def payroll_preview(month=None, year=None, company=None, employee=None):
 	"""Branded HTML for the Payroll Days Summary report."""
 	from saif_erp.saif_erp.report.sga_payroll_days_summary import sga_payroll_days_summary as P

@@ -33,6 +33,10 @@ def execute(filters=None):
 	if not is_mgr:
 		self_emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
 		emp_filter = {"name": self_emp or "__none__"}
+	if "name" not in emp_filter:  # all-staff list → drop management
+		ex = api.hr_report_exclude_names()
+		if ex:
+			emp_filter["name"] = ["not in", ex]
 	employees = frappe.get_all("Employee", filters=emp_filter,
 	                           fields=["name", "employee_name", "company"], order_by="employee_name")
 
@@ -40,8 +44,8 @@ def execute(filters=None):
 	tot_pay = tot_lop = 0
 	for e in employees:
 		att = api._attendance_for(e.name, month)
-		present = att.get("Present", 0) + att.get("Work From Home", 0)
-		half = att.get("Half Day", 0)
+		# no half-days in use (management marks present/absent), so fold any into present
+		present = att.get("Present", 0) + att.get("Work From Home", 0) + att.get("Half Day", 0)
 		paid_leave = att.get("On Leave", 0)
 		absent = att.get("Absent", 0)  # LOP
 		payable = total_days - absent  # holidays + present + paid leave + unmarked are paid
@@ -52,7 +56,7 @@ def execute(filters=None):
 			"company": _short_company(e.company),
 			"total_days": total_days, "holidays": att.get("holidays", 0),
 			"working_days": att.get("working_days", 0),
-			"present": present, "half_day": half, "paid_leave": paid_leave,
+			"present": present, "paid_leave": paid_leave,
 			"lop": absent, "payable_days": payable,
 		})
 
@@ -80,8 +84,7 @@ def get_columns():
 		{"label": _("Total Days"), "fieldname": "total_days", "fieldtype": "Int", "width": 85},
 		{"label": _("Holidays"), "fieldname": "holidays", "fieldtype": "Int", "width": 80},
 		{"label": _("Working Days"), "fieldname": "working_days", "fieldtype": "Int", "width": 95},
-		{"label": _("Present"), "fieldname": "present", "fieldtype": "Int", "width": 75},
-		{"label": _("Half Day"), "fieldname": "half_day", "fieldtype": "Int", "width": 75},
+		{"label": _("Present"), "fieldname": "present", "fieldtype": "Int", "width": 80},
 		{"label": _("Paid Leave"), "fieldname": "paid_leave", "fieldtype": "Int", "width": 85},
 		{"label": _("LOP"), "fieldname": "lop", "fieldtype": "Int", "width": 70},
 		{"label": _("Payable Days"), "fieldname": "payable_days", "fieldtype": "Int", "width": 100},

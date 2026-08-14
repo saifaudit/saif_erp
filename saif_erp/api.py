@@ -127,6 +127,15 @@ def _attendance_for(emp, month=None):
 	        "holiday_list": emp_hl, "month": label}
 
 
+def hr_report_exclude_names():
+	"""Employee records to leave OUT of the staff HR reports (management who don't
+	need attendance tracking). By user id so it survives across sites; override
+	with site_config `saif_hr_report_exclude`."""
+	users = frappe.conf.get("saif_hr_report_exclude") or [
+		"santhosh@saifaudit.com", "chandy@saifaudit.com"]
+	return frappe.get_all("Employee", {"user_id": ["in", users]}, pluck="name")
+
+
 def _legacy_balance(emp):
 	"""Legacy (carried-over) leave balance from the custom Legacy Leave Register —
 	the source of truth. Legacy is tracked in the register, not via allocations,

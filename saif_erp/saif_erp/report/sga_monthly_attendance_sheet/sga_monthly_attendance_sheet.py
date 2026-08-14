@@ -11,11 +11,15 @@ import frappe
 from frappe import _
 from frappe.utils import cint, getdate, nowdate
 
+from saif_erp import api
+
 MGMT_ROLES = {"System Manager", "HR Manager", "HR User",
               "Job Order Admin", "Job Order Partner"}
 
+# No half-days in use — management marks a half day as Present or Absent (with a
+# remark), so "Half Day" (if it ever appears) is treated as Present.
 STATUS_CODE = {"Present": "P", "Absent": "A", "On Leave": "L",
-               "Work From Home": "W", "Half Day": "½"}
+               "Work From Home": "W", "Half Day": "P"}
 WEEKDAY = {"Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
            "Friday": 4, "Saturday": 5, "Sunday": 6}
 
@@ -37,6 +41,10 @@ def execute(filters=None):
 	if not is_mgr:
 		self_emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
 		emp_filter = {"name": self_emp or "__none__"}
+	if "name" not in emp_filter:  # all-staff list → drop management
+		ex = api.hr_report_exclude_names()
+		if ex:
+			emp_filter["name"] = ["not in", ex]
 	employees = frappe.get_all("Employee", filters=emp_filter,
 	                           fields=["name", "employee_name", "holiday_list"], order_by="employee_name")
 
@@ -63,16 +71,16 @@ def execute(filters=None):
 			elif wo_idx is not None and dt.weekday() == wo_idx:
 				code = "S"  # weekly off (Sunday)
 			elif dt.weekday() == 5:  # Saturday = work-from-home by policy
-				code = {"Absent": "A", "On Leave": "L", "Half Day": "½"}.get(status, "W")
+				code = {"Absent": "A", "On Leave": "L"}.get(status, "W")
 			elif status:
 				code = STATUS_CODE.get(status, "")  # Mon–Fri: use the marked status
 			else:
 				code = ""  # working day, no attendance record
 			row["d%d" % d] = code
-			if code in ("P", "W"):
-				cnt["P" if code == "P" else "W"] += 1
-			elif code == "½":
-				cnt["P"] += 0.5
+			if code == "P":
+				cnt["P"] += 1
+			elif code == "W":
+				cnt["W"] += 1
 			elif code == "A":
 				cnt["A"] += 1
 			elif code == "L":
@@ -93,7 +101,7 @@ def get_columns(yr, mo, ndays):
 		cols.append({"label": "%d\n%s" % (d, wd), "fieldname": "d%d" % d,
 		             "fieldtype": "Data", "width": 34, "align": "center"})
 	cols += [
-		{"label": _("P"), "fieldname": "t_present", "fieldtype": "Float", "width": 45, "precision": 1},
+		{"label": _("P"), "fieldname": "t_present", "fieldtype": "Int", "width": 45},
 		{"label": _("A"), "fieldname": "t_absent", "fieldtype": "Int", "width": 45},
 		{"label": _("L"), "fieldname": "t_leave", "fieldtype": "Int", "width": 45},
 		{"label": _("WFH"), "fieldname": "t_wfh", "fieldtype": "Int", "width": 50},

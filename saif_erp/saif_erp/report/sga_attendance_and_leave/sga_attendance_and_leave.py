@@ -40,6 +40,10 @@ def execute(filters=None):
 	if not is_mgr:  # staff locked to self
 		self_emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
 		emp_filter = {"name": self_emp or "__none__"}
+	if "name" not in emp_filter:  # all-staff list → drop management
+		ex = api.hr_report_exclude_names()
+		if ex:
+			emp_filter["name"] = ["not in", ex]
 
 	employees = frappe.get_all(
 		"Employee", filters=emp_filter, fields=["name", "employee_name", "company"],

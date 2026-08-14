@@ -218,6 +218,21 @@ def email_pdf(employee=None, from_date=None, to_date=None):
 # `bench set-config saif_monthly_report_recipients '["a@x.com","b@y.com"]'`.
 ADMIN_RECIPIENTS = ["santhosh@saifaudit.com"]
 
+# Only employees whose user holds one of these roles get an individual email.
+# Override with site_config `saif_report_recipient_roles`.
+RECIPIENT_ROLES = ["Job Order Accountant"]
+
+
+def _accountant_users():
+	"""User ids that hold an accountant recipient role."""
+	roles = frappe.conf.get("saif_report_recipient_roles") or RECIPIENT_ROLES
+	return set(
+		frappe.get_all(
+			"Has Role", filters={"role": ["in", roles], "parenttype": "User"},
+			pluck="parent",
+		)
+	)
+
 
 def _pdf(employee, from_date, to_date):
 	from frappe.utils.pdf import get_pdf
@@ -267,11 +282,14 @@ def send_monthly_reports(dry_run=False):
 			      "Job Order Report - All Staff - %s.pdf" % label, _pdf(None, frm, to))
 			out["admin"] = {"to": admins, "sent": True}
 
+	acc_users = _accountant_users()
 	emps = frappe.get_all(
 		"Employee", filters={"status": "Active"},
 		fields=["name", "employee_name", "user_id", "company_email", "personal_email"],
 	)
 	for e in emps:
+		if e.user_id not in acc_users:  # only accountant-role staff get an email
+			continue
 		addr = _emp_email(e)
 		if not addr or "@" not in addr:
 			continue

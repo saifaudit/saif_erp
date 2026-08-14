@@ -57,16 +57,17 @@ def execute(filters=None):
 		cnt = {"P": 0, "A": 0, "L": 0, "W": 0, "off": 0}
 		for d in range(1, ndays + 1):
 			dt = date(yr, mo, d)
-			is_off = dt in holidays or (wo_idx is not None and dt.weekday() == wo_idx)
 			status = att.get(dt)
-			if status in ("Present", "Work From Home", "Half Day"):
-				code = STATUS_CODE[status]  # worked (even if on an off-day)
-			elif is_off:
-				code = "H" if dt in holidays else "S"
+			if dt in holidays:
+				code = "H"  # public holiday
+			elif wo_idx is not None and dt.weekday() == wo_idx:
+				code = "S"  # weekly off (Sunday)
+			elif dt.weekday() == 5:  # Saturday = work-from-home by policy
+				code = {"Absent": "A", "On Leave": "L", "Half Day": "½"}.get(status, "W")
 			elif status:
-				code = STATUS_CODE.get(status, "")
+				code = STATUS_CODE.get(status, "")  # Mon–Fri: use the marked status
 			else:
-				code = ""  # working day, no record
+				code = ""  # working day, no attendance record
 			row["d%d" % d] = code
 			if code in ("P", "W"):
 				cnt["P" if code == "P" else "W"] += 1

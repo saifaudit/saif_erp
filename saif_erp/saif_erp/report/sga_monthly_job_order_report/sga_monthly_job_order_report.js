@@ -1,0 +1,39 @@
+// Copyright (c) 2026, SGA World FZ LLC and contributors
+// For license information, please see license.txt
+
+frappe.query_reports["SGA Monthly Job Order Report"] = {
+	filters: [
+		{
+			fieldname: "from_date",
+			label: __("From Date"),
+			fieldtype: "Date",
+			reqd: 1,
+			default: frappe.datetime.month_start(),
+		},
+		{
+			fieldname: "to_date",
+			label: __("To Date"),
+			fieldtype: "Date",
+			reqd: 1,
+			default: frappe.datetime.get_today(),
+		},
+		{
+			fieldname: "employee",
+			label: __("Employee"),
+			fieldtype: "Link",
+			options: "Employee",
+			// Managers can pick an employee; other staff are always locked to
+			// their own jobs regardless of this filter (enforced server-side).
+		},
+	],
+	formatter(value, row, column, data, default_formatter) {
+		value = default_formatter(value, row, column, data);
+		if (column.fieldname === "role" && data && data.role === "Contributor") {
+			value = `<span style="color:var(--text-muted)">${value}</span>`;
+		}
+		if (column.fieldname === "carry_forward" && data && data.carry_forward === "Yes") {
+			value = `<span style="color:#C0902F;font-weight:600">${value}</span>`;
+		}
+		return value;
+	},
+};

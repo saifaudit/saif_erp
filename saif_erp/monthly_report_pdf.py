@@ -198,9 +198,10 @@ def render_html(employee=None, from_date=None, to_date=None):
 </body></html>"""
 
 
-def render_table_page(title_tag, who, sub, summary, columns, data):
+def render_table_page(title_tag, who, sub, summary, columns, data, compact=False):
 	"""Branded landscape page for ANY tabular report (cards + table). Reused by
-	the Attendance & Leave and Payroll reports."""
+	the Attendance & Leave, Payroll and Monthly Attendance Sheet reports.
+	compact=True shrinks cells for many-column sheets (e.g. day-by-day)."""
 	NUM = {"Int", "Float", "Currency", "Percent"}
 	cards = "".join(
 		"<div class='card'><div class='cv'>%s</div><div class='cl'>%s</div></div>"
@@ -208,9 +209,13 @@ def render_table_page(title_tag, who, sub, summary, columns, data):
 		for c in (summary or [])
 	)
 	head = "".join(
-		"<th style='text-align:%s'>%s</th>" % ("right" if c.get("fieldtype") in NUM else "left", _esc(c["label"]))
+		"<th style='text-align:%s'>%s</th>"
+		% ("right" if c.get("fieldtype") in NUM else ("center" if c.get("align") == "center" else "left"),
+		   _esc(c["label"]).replace("\n", "<br>"))
 		for c in columns
 	)
+	SHEET = {"P": "#0E7A3B", "W": "#1F6FB2", "½": "#0E7A3B", "A": "#C0392B",
+	         "L": "#C0902F", "S": "#9AA5A0", "H": "#7A6BB0"}
 	body_rows = []
 	for r in data:
 		tds = []
@@ -220,10 +225,16 @@ def render_table_page(title_tag, who, sub, summary, columns, data):
 			if ft in NUM:
 				cell = fmt_money(v) if ft == "Currency" else _esc(v)
 				tds.append("<td class='num'>%s</td>" % cell)
+			elif c.get("align") == "center":
+				color = SHEET.get(v)
+				sv = ("<b style='color:%s'>%s</b>" % (color, _esc(v))) if color else _esc(v)
+				tds.append("<td style='text-align:center'>%s</td>" % sv)
 			else:
 				tds.append("<td>%s</td>" % _esc(v))
 		body_rows.append("<tr>%s</tr>" % "".join(tds))
 	body = "".join(body_rows) or ("<tr><td colspan='%d' class='empty'>No data.</td></tr>" % len(columns))
+	cell_css = ("th{{padding:3px 2px;font-size:8px}} td{{padding:2px 2px;font-size:8.5px}}"
+	            if compact else "th{{padding:7px 8px;font-size:10.5px}} td{{padding:5px 8px;font-size:11px}}")
 	generated = getdate(nowdate()).strftime("%d %b %Y")
 	return f"""<!doctype html><html><head><meta charset="utf-8">
 <title>SGA {_esc(title_tag)} — {_esc(who)}</title>
@@ -247,8 +258,9 @@ def render_table_page(title_tag, who, sub, summary, columns, data):
   .card .cv {{ font-size:18px; font-weight:800; color:{BRAND}; font-variant-numeric:tabular-nums; }}
   .card .cl {{ font-size:9.5px; color:{MUTED}; margin-top:3px; text-transform:uppercase; letter-spacing:.4px; font-weight:600; }}
   table {{ width:100%; border-collapse:collapse; }}
-  th {{ background:{BRAND}; color:#fff; padding:7px 8px; font-size:10.5px; font-weight:600; }}
-  td {{ padding:5px 8px; border-bottom:1px solid {LINE}; font-size:11px; }}
+  th {{ background:{BRAND}; color:#fff; font-weight:600; }}
+  td {{ border-bottom:1px solid {LINE}; }}
+  {cell_css}
   tbody tr:nth-child(even) td {{ background:{TINT}; }}
   td.num {{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }}
   td.empty {{ text-align:center; color:{MUTED}; padding:24px; }}
@@ -283,6 +295,23 @@ def attendance_preview(month=None, year=None, company=None, employee=None):
 	sub = "%s %s · %d staff" % (calendar.month_name[cint(month) or getdate(nowdate()).month],
 	                            cint(year) or getdate(nowdate()).year, len(data))
 	return render_table_page(_("Attendance & Leave"), who, sub, summary, cols, data)
+
+
+@frappe.whitelist()
+def attendance_sheet_preview(month=None, year=None, company=None, employee=None):
+	"""Branded HTML for the day-by-day Monthly Attendance Sheet (compact)."""
+	from saif_erp.saif_erp.report.sga_monthly_attendance_sheet import sga_monthly_attendance_sheet as S
+
+	f = {"month": month, "year": year, "company": company, "employee": employee}
+	cols, data, _msg, _chart, summary = S.execute(f)
+	who = _("All Staff")
+	if employee:
+		who = frappe.db.get_value("Employee", employee, "employee_name") or employee
+	import calendar
+
+	sub = "%s %s · P present · A absent · L leave · W home · S week-off · H holiday" % (
+		calendar.month_name[cint(month) or getdate(nowdate()).month], cint(year) or getdate(nowdate()).year)
+	return render_table_page(_("Attendance Sheet"), who, sub, summary, cols, data, compact=True)
 
 
 @frappe.whitelist()

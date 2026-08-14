@@ -22,25 +22,25 @@ from saif_erp.saif_erp.report.sga_monthly_job_order_report import (
 BRAND = "#155636"
 ACCENT = "#3DB54A"
 
-_HEADER_SVG = None
+ORG_NAMES = ("SGA World Auditing Accounting LLC SPC", "Saif Chartered Accountants")
+
+_LOGO = None
 
 
-def _banner_svg():
-	"""Inline the bundled SGA/SAIF brand banner (logo + both company names).
-	Inlined (not <img>) so it renders in the browser print view and in the
-	server-side wkhtmltopdf/Chrome PDF without any URL resolution."""
-	global _HEADER_SVG
-	if _HEADER_SVG is None:
-		path = os.path.join(os.path.dirname(__file__), "public", "images", "sga-header.svg")
+def _logo_data_uri():
+	"""The green hex logo as a base64 data URI — self-contained so it renders
+	in the browser print view and in the server-side PDF without a URL."""
+	global _LOGO
+	if _LOGO is None:
+		import base64
+
+		path = os.path.join(os.path.dirname(__file__), "public", "images", "sga-logo.png")
 		try:
-			with open(path, encoding="utf-8") as fh:
-				svg = fh.read()
-			# drop the xml prolog so it embeds cleanly inside HTML
-			svg = svg.split("?>", 1)[-1] if svg.lstrip().startswith("<?xml") else svg
-			_HEADER_SVG = svg.strip()
+			with open(path, "rb") as fh:
+				_LOGO = "data:image/png;base64," + base64.b64encode(fh.read()).decode()
 		except OSError:
-			_HEADER_SVG = ""
-	return _HEADER_SVG
+			_LOGO = ""
+	return _LOGO
 
 # columns shown on the printed sheet (trimmed from the 14 on-screen columns)
 PRINT_COLS = [
@@ -171,7 +171,10 @@ def render_html(employee=None, from_date=None, to_date=None):
          color: #222; margin: 0; padding: 18px; font-size: 12px; }}
   .hdr {{ display:flex; justify-content:space-between; align-items:flex-end;
          border-bottom: 3px solid {BRAND}; padding-bottom: 10px; margin-bottom: 14px; gap:16px; }}
-  .hdr .brand svg {{ height: 52px; width:auto; display:block; }}
+  .hdr .brand {{ display:flex; align-items:center; gap:12px; }}
+  .hdr .brand img {{ height: 50px; width:auto; }}
+  .hdr .brand .o1 {{ font-size:15px; font-weight:800; color:{BRAND}; letter-spacing:.2px; }}
+  .hdr .brand .o2 {{ font-size:12px; font-weight:600; color:{ACCENT}; margin-top:2px; }}
   .hdr .who {{ text-align:right; }}
   .hdr .who .tag {{ font-size: 10px; font-weight:700; letter-spacing:1.2px;
         text-transform:uppercase; color:{ACCENT}; }}
@@ -200,7 +203,11 @@ def render_html(employee=None, from_date=None, to_date=None):
   @media print {{ body {{ padding:0; }} .noprint {{ display:none; }} }}
 </style></head><body>
   <div class="hdr">
-    <div class="brand">{_banner_svg()}</div>
+    <div class="brand">
+      <img src="{_logo_data_uri()}" alt="logo">
+      <div><div class="o1">{_esc(ORG_NAMES[0])}</div>
+        <div class="o2">{_esc(ORG_NAMES[1])}</div></div>
+    </div>
     <div class="who">
       <div class="tag">Job Order Report</div>
       <div class="name">{_esc(who)}</div>

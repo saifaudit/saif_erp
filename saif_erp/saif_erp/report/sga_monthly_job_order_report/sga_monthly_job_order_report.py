@@ -34,10 +34,12 @@ def execute(filters=None):
 	return get_columns(), data, message, chart, summary
 
 
-# relative-rating weights (Balanced). Speed's weight is redistributed to the
-# others when an employee has no datable finished jobs, so missing time data
-# never drags a rating down.
-RATING_W = {"volume": 0.30, "invoiced": 0.30, "finished": 0.25, "speed": 0.15}
+# relative-rating weights. Invoiced amount is weighted highest (per management).
+# Speed's weight is redistributed to the others when an employee has no datable
+# finished jobs, so missing time data never drags a rating down.
+# NOTE: a manual reviewer rating is planned to be blended in later — see
+# saif-erp-reports-rating memory.
+RATING_W = {"invoiced": 0.40, "volume": 0.25, "finished": 0.25, "speed": 0.10}
 
 
 def compute_team_ratings(frm, to):
@@ -75,6 +77,17 @@ def compute_team_ratings(frm, to):
 		if r.job_status in DONE and fin and frm <= fin <= to and r.job_date:
 			m["finished"] += 1
 			m["turns"].append(date_diff(fin, getdate(r.job_date)))
+
+	# rate only CURRENTLY ACTIVE employees — resigned/left staff would otherwise
+	# pad the denominator ("#10 of 21") and appear in the leaderboard.
+	active = {
+		e.user_id
+		for e in frappe.get_all(
+			"Employee", filters={"status": "Active", "user_id": ["is", "set"]},
+			fields=["user_id"],
+		)
+	}
+	agg = {u: m for u, m in agg.items() if u in active}
 	if not agg:
 		return {}
 

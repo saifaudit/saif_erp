@@ -79,6 +79,45 @@ def _esc(v):
 	return frappe.utils.escape_html("" if v is None else str(v))
 
 
+def _stars(n):
+	return "★" * int(n) + "☆" * (5 - int(n))
+
+
+def _leaderboard(frm, to):
+	"""Team rating table for the admin (all-staff) PDF."""
+	ratings = R.compute_team_ratings(frm, to)
+	if not ratings:
+		return ""
+	# resolve user_id -> (name, company)
+	emap = {}
+	emps = frappe.get_all(
+		"Employee", filters={"user_id": ["in", list(ratings)]},
+		fields=["user_id", "employee_name", "company"],
+	)
+	for e in emps:
+		emap[e.user_id] = (e.employee_name, e.company or "")
+	ranked = sorted(ratings.items(), key=lambda kv: kv[1]["rank"])
+	trs = []
+	for uid, m in ranked:
+		name, company = emap.get(uid, (uid, ""))
+		turn = m["avg_turn"] if m["avg_turn"] is not None else "—"
+		trs.append(
+			"<tr><td class='num'>%d</td><td>%s</td><td class='co2'>%s</td>"
+			"<td class='num'>%d</td><td class='num'>%d</td><td class='num'>%s</td>"
+			"<td class='num'>%s</td><td class='num'>%d</td><td class='st'>%s</td></tr>"
+			% (m["rank"], _esc(name), _esc(company), m["volume"], m["finished"],
+			   turn, fmt_money(m["invoiced"]), m["score"], _stars(m["stars"]))
+		)
+	return (
+		"<div class='lb'><div class='lbt'>Team Rating — this month "
+		"<span class='lbn'>(Volume 30% · Invoiced 30% · Finished 25% · Speed 15%, relative to team)</span></div>"
+		"<table class='lbtab'><thead><tr>"
+		"<th>#</th><th>Employee</th><th>Company</th><th>Works</th><th>Finished</th>"
+		"<th>Turn (d)</th><th>Invoiced</th><th>Score</th><th>Rating</th>"
+		"</tr></thead><tbody>" + "".join(trs) + "</tbody></table></div>"
+	)
+
+
 def render_html(employee=None, from_date=None, to_date=None):
 	frm, to = _period(from_date, to_date)
 	filters = frappe._dict({"from_date": frm, "to_date": to})
@@ -119,9 +158,12 @@ def render_html(employee=None, from_date=None, to_date=None):
 		"<tr><td colspan='%d' class='empty'>No job orders in this period.</td></tr>" % len(PRINT_COLS)
 	)
 
+	# admin (all-staff) view gets a team rating leaderboard
+	leaderboard = "" if employee else _leaderboard(frm, to)
+
 	generated = getdate(nowdate()).strftime("%d %b %Y")
 	return f"""<!doctype html><html><head><meta charset="utf-8">
-<title>SGA Monthly Report — {_esc(who)}</title>
+<title>SGA Job Order Report — {_esc(who)}</title>
 <style>
   @page {{ size: A4 landscape; margin: 12mm; }}
   * {{ box-sizing: border-box; }}
@@ -150,6 +192,11 @@ def render_html(employee=None, from_date=None, to_date=None):
   td.cf {{ color:#C0902F; font-weight:700; }}
   td.empty {{ text-align:center; color:#888; padding:24px; }}
   .foot {{ margin-top:14px; font-size:10px; color:#999; text-align:right; }}
+  .lb {{ margin-bottom:16px; }}
+  .lb .lbt {{ font-size:13px; font-weight:800; color:{BRAND}; margin-bottom:6px; }}
+  .lb .lbn {{ font-size:9.5px; font-weight:500; color:#888; letter-spacing:0; }}
+  .lbtab td.co2 {{ color:#555; font-size:10px; }}
+  .lbtab td.st {{ color:#C0902F; letter-spacing:1px; white-space:nowrap; }}
   @media print {{ body {{ padding:0; }} .noprint {{ display:none; }} }}
 </style></head><body>
   <div class="hdr">
@@ -162,6 +209,7 @@ def render_html(employee=None, from_date=None, to_date=None):
     </div>
   </div>
   <div class="cards">{cards}</div>
+  {leaderboard}
   <table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>
   <div class="foot">Generated {generated} · SAIF ERP</div>
 </body></html>"""

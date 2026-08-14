@@ -34,6 +34,74 @@ def execute(filters=None):
 	return get_columns(), data, None, chart, summary
 
 
+# relative-rating weights (Balanced). Speed's weight is redistributed to the
+# others when an employee has no datable finished jobs, so missing time data
+# never drags a rating down.
+RATING_W = {"volume": 0.30, "invoiced": 0.30, "finished": 0.25, "speed": 0.15}
+
+
+def compute_team_ratings(frm, to):
+	"""Per-employee metrics for the period, scored RELATIVE to the whole team.
+	Volume credits owner + collaborators; invoiced / finished / turnaround credit
+	the owning accountant only. Returns {user_id: {...score, stars, rank...}}."""
+	frm, to = getdate(frm), getdate(to)
+	params = {"from": frm, "to": to, "active": ACTIVE}
+	period = ("(jo.job_date between %(from)s and %(to)s"
+	          " or (jo.job_date < %(from)s and jo.job_status in %(active)s)"
+	          " or (jo.job_date < %(from)s and jo.closure_date between %(from)s and %(to)s))")
+	sql = f"""
+		select 'o' role, jo.name, jo.accountant emp, jo.job_status, jo.job_date,
+			jo.closure_date, jo.invoiced_amount
+		from `tabJob Order` jo where jo.docstatus=1 and {period} and jo.accountant is not null
+		union all
+		select 'c', jo.name, joc.to_accountant, jo.job_status, jo.job_date,
+			jo.closure_date, jo.invoiced_amount
+		from `tabJob Order Contributors` joc join `tabJob Order` jo on jo.name = joc.parent
+		where jo.docstatus=1 and {period} and joc.to_accountant is not null
+	"""
+	rows = frappe.db.sql(sql, params, as_dict=True)
+	finish = _finish_dates(list({r.name for r in rows}))
+
+	agg = {}
+	for r in rows:
+		m = agg.setdefault(r.emp, {"volume": 0, "invoiced": 0.0, "finished": 0, "turns": []})
+		m["volume"] += 1
+		if r.role != "o":
+			continue  # money & completion credit only to the owning accountant
+		if r.job_date and getdate(r.job_date) >= frm and getdate(r.job_date) <= to:
+			m["invoiced"] += flt(r.invoiced_amount)  # new-this-period billing
+		fin = r.closure_date or finish.get(r.name)
+		fin = getdate(fin) if fin else None
+		if r.job_status in DONE and fin and frm <= fin <= to and r.job_date:
+			m["finished"] += 1
+			m["turns"].append(date_diff(fin, getdate(r.job_date)))
+	if not agg:
+		return {}
+
+	for m in agg.values():
+		m["avg_turn"] = round(sum(m["turns"]) / len(m["turns"])) if m["turns"] else None
+	mx = {k: max((m[k] for m in agg.values()), default=0) or 1 for k in ("volume", "invoiced", "finished")}
+	best_turn = min((m["avg_turn"] for m in agg.values() if m["avg_turn"]), default=None)
+
+	for m in agg.values():
+		parts = {
+			"volume": m["volume"] / mx["volume"],
+			"invoiced": m["invoiced"] / mx["invoiced"],
+			"finished": m["finished"] / mx["finished"],
+		}
+		if m["avg_turn"] and best_turn:
+			parts["speed"] = best_turn / m["avg_turn"]  # 1.0 = fastest in team
+		total_w = sum(RATING_W[k] for k in parts)
+		score = sum(v * RATING_W[k] for k, v in parts.items()) / total_w
+		m["score"] = round(score * 100)
+	ranked = sorted(agg.items(), key=lambda kv: -kv[1]["score"])
+	top = ranked[0][1]["score"] or 1  # stars are relative to the team's best
+	for i, (_emp, m) in enumerate(ranked, 1):
+		m["rank"], m["team"] = i, len(ranked)
+		m["stars"] = max(1, min(5, round(5 * m["score"] / top)))
+	return agg
+
+
 def get_columns():
 	return [
 		{"label": _("Role"), "fieldname": "role", "fieldtype": "Data", "width": 95},
@@ -187,6 +255,21 @@ def get_data(filters):
 		{"label": _("Invoiced (carried fwd)"), "value": inv_carr, "datatype": "Currency", "indicator": "Orange"},
 		{"label": _("Collected (carried fwd)"), "value": col_carr, "datatype": "Currency", "indicator": "Orange"},
 	]
+
+	# ---- relative rating (shown when the report is scoped to one employee) ----
+	target_uid = None
+	if filters.get("employee"):
+		target_uid = frappe.db.get_value("Employee", filters.employee, "user_id")
+	elif not is_mgr:
+		target_uid = frappe.session.user
+	if target_uid:
+		r = compute_team_ratings(frm, to).get(target_uid)
+		if r:
+			stars = "★" * r["stars"] + "☆" * (5 - r["stars"])
+			summary.insert(0, {"label": _("Rating (vs team)"),
+				"value": "%d / 100  %s" % (r["score"], stars), "datatype": "Data", "indicator": "Green"})
+			summary.insert(1, {"label": _("Team rank"),
+				"value": "#%d of %d" % (r["rank"], r["team"]), "datatype": "Data", "indicator": "Blue"})
 
 	# ---- chart: workload by status ----
 	from collections import Counter

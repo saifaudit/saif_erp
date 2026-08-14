@@ -155,7 +155,7 @@ def render_html(employee=None, from_date=None, to_date=None):
   <div class="hdr">
     <div class="brand">{_banner_svg()}</div>
     <div class="who">
-      <div class="tag">Monthly Report</div>
+      <div class="tag">Job Order Report</div>
       <div class="name">{_esc(who)}</div>
       <div class="co">{_esc(company)}</div>
       <div class="per">{_esc(period_lbl)}</div>

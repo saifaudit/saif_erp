@@ -9,6 +9,8 @@ Scope: managers see everyone (or one, via the Employee filter); other staff
 are always locked to their own jobs — so it serves both the admin and the
 employee versions from a single report."""
 
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import date_diff, flt, get_first_day, getdate, nowdate
@@ -17,6 +19,9 @@ MGMT_ROLES = {"System Manager", "Job Order Admin", "Job Order Admin Support",
               "Job Order Semi Admin", "Job Order Partner", "HR Manager"}
 ACTIVE = ("Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending")
 DONE = ("Finished", "Closed (Failed)")
+# "on hold" jobs stall for client/external reasons, not employee performance —
+# excluded from the turnaround/efficiency time so staff aren't penalised for them.
+HOLD = ("Temporarily stopped", "Awaiting Client Data")
 
 
 def execute(filters=None):
@@ -48,6 +53,33 @@ def get_columns():
 	]
 
 
+def _finish_dates(names):
+	"""Best-effort finish date per job from the change-log (track_changes): the
+	timestamp it last moved into a DONE status. Used only where the manual
+	Closure Date is blank (which is ~93% of finished jobs). Historical/migrated
+	jobs with no change-log simply have no finish date and are left out of the
+	turnaround average rather than guessed."""
+	if not names:
+		return {}
+	rows = frappe.db.sql(
+		"""select docname, creation, data from `tabVersion`
+		   where ref_doctype='Job Order' and docname in %(n)s
+		     and data like '%%job_status%%' order by creation asc""",
+		{"n": tuple(names)},
+		as_dict=True,
+	)
+	out = {}
+	for r in rows:
+		try:
+			d = json.loads(r.data)
+		except Exception:
+			continue
+		for ch in d.get("changed", []):
+			if ch and ch[0] == "job_status" and ch[2] in DONE:
+				out[r.docname] = getdate(r.creation)  # asc order → last DONE wins
+	return out
+
+
 def get_data(filters):
 	is_mgr = bool(MGMT_ROLES & set(frappe.get_roles()))
 	users = None  # None = all (managers)
@@ -58,8 +90,10 @@ def get_data(filters):
 		users = [frappe.session.user]  # staff always locked to self
 
 	params = {"from": filters.from_date, "to": filters.to_date, "active": ACTIVE}
-	# new-this-period OR carried-forward-and-still-active
-	period = "(jo.job_date between %(from)s and %(to)s or (jo.job_date < %(from)s and jo.job_status in %(active)s))"
+	# new-this-period OR carried-forward-and-still-active OR carried-and-closed-this-period
+	period = ("(jo.job_date between %(from)s and %(to)s"
+	          " or (jo.job_date < %(from)s and jo.job_status in %(active)s)"
+	          " or (jo.job_date < %(from)s and jo.closure_date between %(from)s and %(to)s))")
 	owned_u = contrib_u = ""
 	if users is not None:
 		params["users"] = tuple(users)
@@ -87,12 +121,19 @@ def get_data(filters):
 	"""
 	rows = frappe.db.sql(sql, params, as_dict=True)
 	frm = getdate(filters.from_date)
+	to = getdate(filters.to_date)
 	tdy = getdate(nowdate())
-	out, agings = [], []
+	finish_log = _finish_dates(list({r.job_order for r in rows}))
+	out, turnaround = [], []  # turnaround = finished jobs with a known finish date
 	for r in rows:
-		end = r.closure_date if (r.job_status in DONE and r.closure_date) else tdy
+		fin = r.closure_date or finish_log.get(r.job_order)
+		fin = getdate(fin) if fin else None
+		is_done = r.job_status in DONE
+		on_hold = r.job_status in HOLD
+		end = fin if (is_done and fin) else tdy
 		aging = date_diff(end, r.job_date) if r.job_date else 0
-		agings.append(aging)
+		if is_done and fin and r.job_date and frm <= fin <= to:
+			turnaround.append(date_diff(fin, r.job_date))
 		transfer = ""
 		if r.transferred_to or r.transferred_from:
 			transfer = ("%s → %s" % (r.transferred_from or "—", r.transferred_to or "—"))
@@ -107,6 +148,7 @@ def get_data(filters):
 			"other_accountants": others,
 			"proposed_amount": flt(r.proposed_amount), "invoiced_amount": flt(r.invoiced_amount),
 			"paid_amount": flt(r.paid_amount), "transfer": transfer, "remarks": r.remarks,
+			"_finish": fin, "_done": is_done, "_hold": on_hold,
 		})
 
 	# ---- efficiency summary (headline numbers) ----
@@ -119,19 +161,27 @@ def get_data(filters):
 	carried = len(carr_rows)
 	single = sum(1 for d in out if not d["other_accountants"] and d["role"] == "Accountant")
 	collab = sum(1 for d in out if d["other_accountants"] or d["role"] == "Contributor")
-	finished = sum(1 for d in out if d["job_status"] == "Finished")
-	avg_aging = round(sum(agings) / len(agings)) if agings else 0
+	# Finished THIS PERIOD = jobs whose finish date falls inside the window
+	# (not merely "currently Finished"), so it measures output for the month.
+	finished_period = sum(1 for d in out if d["_done"] and d["_finish"] and frm <= d["_finish"] <= to)
+	on_hold = sum(1 for d in out if d["_hold"])
+	# fair turnaround: finished jobs with a known finish date only — excludes
+	# still-open and on-hold jobs, so client-side delays don't inflate it.
+	avg_turn = round(sum(turnaround) / len(turnaround)) if turnaround else "—"
 	inv_new = sum(d["invoiced_amount"] for d in this_rows)
 	col_new = sum(d["paid_amount"] for d in this_rows)
 	inv_carr = sum(d["invoiced_amount"] for d in carr_rows)
 	col_carr = sum(d["paid_amount"] for d in carr_rows)
 	summary = [
+		{"label": _("Works handled"), "value": len(out), "datatype": "Int", "indicator": "Blue"},
 		{"label": _("New this month"), "value": this_month, "datatype": "Int", "indicator": "Blue"},
 		{"label": _("Carried forward"), "value": carried, "datatype": "Int", "indicator": "Orange"},
 		{"label": _("Single work"), "value": single, "datatype": "Int"},
 		{"label": _("Collaborated"), "value": collab, "datatype": "Int", "indicator": "Purple"},
-		{"label": _("Finished"), "value": finished, "datatype": "Int", "indicator": "Green"},
-		{"label": _("Avg time (days)"), "value": avg_aging, "datatype": "Int"},
+		{"label": _("Finished this month"), "value": finished_period, "datatype": "Int", "indicator": "Green"},
+		{"label": _("On hold (client)"), "value": on_hold, "datatype": "Int", "indicator": "Red"},
+		{"label": _("Avg turnaround (finished, days)"), "value": avg_turn,
+		 "datatype": "Int" if turnaround else "Data"},
 		{"label": _("Invoiced (this month)"), "value": inv_new, "datatype": "Currency", "indicator": "Green"},
 		{"label": _("Collected (this month)"), "value": col_new, "datatype": "Currency", "indicator": "Green"},
 		{"label": _("Invoiced (carried fwd)"), "value": inv_carr, "datatype": "Currency", "indicator": "Orange"},

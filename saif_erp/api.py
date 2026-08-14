@@ -118,8 +118,8 @@ def _attendance_for(emp, month=None):
 
 	counts = {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0, "Work From Home": 0}
 	for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date between %s and %s and docstatus=1", (emp, month_start, cap_end), as_dict=True):
-		if r.status == "Absent" and is_off(frappe.utils.getdate(r.attendance_date)):
-			continue
+		if r.status in ("Absent", "On Leave", "Half Day") and is_off(frappe.utils.getdate(r.attendance_date)):
+			continue  # can't be absent/on-leave on a weekly-off or public holiday
 		counts[r.status] = counts.get(r.status, 0) + 1
 	elapsed = (cap_end - month_start).days + 1
 	working_days = sum(1 for i in range(elapsed) if not is_off(month_start + timedelta(days=i)))

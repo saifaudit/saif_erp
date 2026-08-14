@@ -1,18 +1,18 @@
 [
  {
   "default_value": null,
-  "doc_type": "Job Order",
+  "doc_type": "Credential Manager",
   "docstatus": 0,
   "doctype": "Property Setter",
   "doctype_or_field": "DocField",
-  "field_name": "job_status",
+  "field_name": "portal_password",
   "is_system_generated": 1,
-  "modified": "2026-08-13 10:02:51.848482",
+  "modified": "2026-08-14 08:00:51.827490",
   "module": null,
-  "name": "Job Order-job_status-options",
-  "property": "options",
-  "property_type": "Text",
+  "name": "Credential Manager-portal_password-fieldtype",
+  "property": "fieldtype",
+  "property_type": "Select",
   "row_name": null,
-  "value": "Open\nProgress\nFinished\nTemporarily stopped\nClosed (Failed)\nPending\nUnder Review\nAwaiting Client Data"
+  "value": "Password"
  }
 ]

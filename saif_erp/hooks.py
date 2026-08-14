@@ -277,6 +277,7 @@ fixtures = [
 	{"doctype": "Workflow Action Master", "filters": [["name", "in", ["Request Approval", "Approve", "Reject"]]]},
 	{"doctype": "Custom Field", "filters": [["name", "=", "Job Order-workflow_state"]]},
 	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Job Order"], ["field_name", "=", "job_status"], ["property", "=", "options"]]},
+	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Credential Manager"], ["field_name", "=", "portal_password"], ["property", "=", "fieldtype"]]},
 	# SAIF dashboard — number cards (extended per redesign step)
 	{"doctype": "Number Card", "filters": [["name", "in", [
 		# Job Order

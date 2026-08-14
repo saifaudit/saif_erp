@@ -42,6 +42,31 @@ function joHref(params) {
 const listHref = (dt, params) => "/app/" + dt + "/view/list" + (params && Object.keys(params).length ? "?" + Object.entries(params).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&") : "");
 const fmtDT = (t) => { if (!t) return ""; try { return moment(t).format("ddd D MMM · h:mm A"); } catch (e) { return _rel(t); } };
 const fmtDate = (t) => { if (!t) return ""; try { return moment(t).format("D MMM"); } catch (e) { return String(t); } };
+function mountSalesChart(sm) {
+	const el = document.getElementById("sga-sales-chart");
+	if (!el || !frappe.Chart) return;
+	const css = getComputedStyle(document.querySelector(".sga-dash"));
+	const brand = (css.getPropertyValue("--sga-brand") || "#198754").trim();
+	const kAED = (v) => "AED " + (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(2) + "M" : Math.round(v / 1000) + "K");
+	new frappe.Chart(el, {
+		type: "axis-mixed",
+		height: 290,
+		colors: ["#C7D9CE", "#7FB79A", brand], // 2-yrs-ago (light) · last year (mid) · this year (brand)
+		data: {
+			labels: sm.labels,
+			datasets: sm.years.map((y, i) => ({
+				name: String(y),
+				chartType: i === 2 ? "bar" : "line",
+				values: (sm.series[String(y)] || []).map((v) => Math.round(v)),
+			})),
+			yMarkers: sm.ly_avg ? [{ label: "LY avg " + kAED(sm.ly_avg), value: sm.ly_avg, type: "dashed" }] : [],
+		},
+		lineOptions: { hideDots: 0, regionFill: 0, spline: 1 },
+		barOptions: { spaceRatio: 0.5 },
+		axisOptions: { xAxisMode: "tick", shortenYAxisNumbers: 1 },
+		tooltipOptions: { formatTooltipY: (v) => kAED(v) },
+	});
+}
 function quickActions(isManager) {
 	const items = [
 		["+ Leave Application", "/app/leave-application/new"],
@@ -165,6 +190,21 @@ function render($root, d, actions) {
 	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished all‑time`, "var(--sga-accent)", null, joHref({ job_status: "Progress" }))}
 	</div></div>`);
 
+	// Monthly sales — 3-year comparison (admin)
+	const sm = d.sales_monthly;
+	if (sm) {
+		const up = (sm.yoy || 0) >= 0;
+		const yoyChip = `<span class="sga-chip ${up ? "good" : "bad"}">${up ? "▲" : "▼"} ${Math.abs(sm.yoy)}% vs last year · same period</span>`;
+		parts.push(`<div class="sga-sec"><div class="sga-eye"><h2>Monthly sales · ${sm.years[2]} vs ${sm.years[1]} vs ${sm.years[0]}</h2><span class="rule"></span></div>
+		<div class="sga-grid k4">
+		  ${kpi("This year so far", _m(sm.ytd), `Jan–${sm.labels[new Date().getMonth()]} ${sm.years[2]}`, "var(--sga-brand)", null, null)}
+		  ${kpi("vs last year", (up ? "+" : "") + sm.yoy + "%", yoyChip, up ? "var(--sga-good)" : "var(--sga-bad)", null, null)}
+		  ${kpi("Last year total", _m(sm.ly_total), `${sm.years[1]} · full year`, "var(--sga-slate2)", null, null)}
+		  ${kpi("Last year avg / month", _m(sm.ly_avg), "shown as the dashed benchmark", "var(--sga-slate2)", null, null)}
+		</div>
+		<div class="sga-card" style="margin-top:14px"><div id="sga-sales-chart"></div></div></div>`);
+	}
+
 	// Receivables aging
 	parts.push(aging_section(d));
 
@@ -237,6 +277,7 @@ function render($root, d, actions) {
 
 	parts.push(`<div class="sga-foot">SGA Job Orders dashboard · figures live from this site · financials = ${_esc(money.period_label || "This year")}</div>`);
 	$root.html(parts.join(""));
+	if (d.sales_monthly) mountSalesChart(d.sales_monthly);
 	$root.find(".sga-period button").on("click", function () {
 		if (typeof setPeriod === "function") setPeriod($(this).data("p"));
 	});
@@ -565,13 +606,13 @@ function inject_styles() {
 .sga-dash{--sga-brand:#198754;--sga-brand-deep:#115C3A;--sga-brand-soft:#2E8B43;--sga-accent:#20C997;
  --sga-good:#198754;--sga-amber:#C0902F;--sga-orange:#CC6B3C;--sga-bad:#B0413A;--sga-slate:#7C8B94;--sga-slate2:#54707C;
  --sga-surface:#fff;--sga-surface2:#F2F7F3;--sga-line:#E1E9E2;--sga-ink:#17251C;--sga-ink2:#45524A;--sga-muted:#74837A;
- --glass:rgba(255,255,255,.55);--glass-brd:rgba(255,255,255,.65);--glass-sh:0 8px 30px rgba(16,74,44,.10);
+ --glass:rgba(255,255,255,.86);--glass-brd:rgba(224,235,229,.9);--glass-sh:0 6px 22px rgba(16,74,44,.08);
  font-variant-numeric:tabular-nums;color:var(--sga-ink);padding:18px;border-radius:22px;
  background:radial-gradient(1100px 520px at 8% -8%,#d9efe4 0%,transparent 55%),radial-gradient(880px 460px at 99% -2%,#dfeafb 0%,transparent 52%),linear-gradient(180deg,#f4f9f6,#eef5f0)}
 [data-theme="dark"] .sga-dash{--sga-brand:#2FD08A;--sga-brand-deep:#0C2C1A;--sga-brand-soft:#2E8B43;--sga-accent:#37E0A6;
  --sga-good:#4FB56A;--sga-amber:#DCB14E;--sga-orange:#E08B57;--sga-bad:#E0685F;--sga-slate:#8FA1AB;--sga-slate2:#A9C0CB;
  --sga-surface:#18211B;--sga-surface2:#121A14;--sga-line:#26332A;--sga-ink:#EAF1EC;--sga-ink2:#BCCAC0;--sga-muted:#8A9B90;
- --glass:rgba(28,40,32,.52);--glass-brd:rgba(255,255,255,.10);--glass-sh:0 8px 30px rgba(0,0,0,.34);
+ --glass:rgba(28,40,32,.74);--glass-brd:rgba(255,255,255,.09);--glass-sh:0 6px 22px rgba(0,0,0,.30);
  background:radial-gradient(1000px 500px at 8% -8%,#123023 0%,transparent 55%),linear-gradient(180deg,#0e1712,#0b120d)}
 .sga-dash a{text-decoration:none;color:inherit}
 .sga-loading,.sga-empty{color:var(--sga-muted);padding:24px 4px;font-size:14px}

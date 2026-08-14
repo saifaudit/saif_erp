@@ -350,6 +350,28 @@ def dashboard_data(period="year", company=None, att_month=None):
 		from {jo} where docstatus=1 and job_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH){cw()}
 		group by label order by label""", as_dict=True,
 	)
+
+	# Monthly sales (invoiced) — current year vs the previous two, for the admin.
+	this_year = frappe.utils.getdate(frappe.utils.today()).year
+	cur_month = frappe.utils.getdate(frappe.utils.today()).month
+	sm = {y: [0.0] * 12 for y in (this_year - 2, this_year - 1, this_year)}
+	for r in frappe.db.sql(
+		f"""select year(job_date) yr, month(job_date) mo, round(sum(invoiced_amount)) amt
+		from {jo} where docstatus=1 and job_date >= '{this_year - 2}-01-01'{cw()}
+		group by yr, mo""", as_dict=True):
+		if r.yr in sm and r.mo:
+			sm[r.yr][int(r.mo) - 1] = float(r.amt or 0)
+	ly_total = sum(sm[this_year - 1])
+	ly_same = sum(sm[this_year - 1][:cur_month])
+	ytd = sum(sm[this_year][:cur_month])
+	sales_monthly = {
+		"labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+		"years": [this_year - 2, this_year - 1, this_year],
+		"series": {str(y): sm[y] for y in sm},
+		"ytd": ytd, "ly_total": ly_total, "ly_same": ly_same,
+		"ly_avg": round(ly_total / 12) if ly_total else 0,
+		"yoy": round((ytd - ly_same) / ly_same * 100) if ly_same else 0,
+	}
 	throughput = frappe.db.sql(
 		f"""select DATE_FORMAT(job_date, '%Y-%m') label, count(*) created,
 			sum(case when job_status='Finished' then 1 else 0 end) finished
@@ -426,6 +448,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 		"orphan_active": orphan_active, "proposals": proposals,
 		"aging": aging, "aging_total": aging_total, "top_customers": top_customers,
 		"top_debtors": top_debtors, "rev_trend": rev_trend, "throughput": throughput,
+		"sales_monthly": sales_monthly,
 		"compliance": compliance, "turnaround": turnaround,
 		"companies": companies, "company": comp,
 		"me_personal": _personal(frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")),

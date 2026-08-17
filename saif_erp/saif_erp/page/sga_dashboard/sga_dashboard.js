@@ -589,13 +589,12 @@ function compliance_section(d) {
 
 function attCard(att, checkins) {
 	att = att || {};
-	// Only Present & WFH drill through: their tile count equals a plain status+date
-	// filter. Absent/On Leave/Half Day are holiday-adjusted (off-day records dropped
-	// from the count) so a raw list wouldn't match; Holidays is computed and the
-	// Holiday List isn't visible to accountants — so those stay non-clickable.
+	// Counts are as-recorded, so every status tile matches its click-through list and
+	// is clickable. Only Holidays stays static (it's a computed figure and the Holiday
+	// List isn't visible to accountants).
 	const attDefs = [
-		["Present", "var(--sga-good)", att.Present, true, "Present"], ["Absent", "var(--sga-bad)", att.Absent, true, null],
-		["On Leave", "var(--sga-slate2)", att["On Leave"], false, null], ["Half Day", "var(--sga-amber)", att["Half Day"], false, null],
+		["Present", "var(--sga-good)", att.Present, true, "Present"], ["Absent", "var(--sga-bad)", att.Absent, true, "Absent"],
+		["On Leave", "var(--sga-slate2)", att["On Leave"], false, "On Leave"], ["Half Day", "var(--sga-amber)", att["Half Day"], false, "Half Day"],
 		["WFH", "var(--sga-brand-soft)", att["Work From Home"], false, "Work From Home"], ["Holidays", "var(--sga-slate)", att.holidays, true, null]];
 	const attLink = (status) => {
 		if (!att.employee || !status || !att.from_date) return null;
@@ -608,9 +607,21 @@ function attCard(att, checkins) {
 		return href ? `<a class="sga-stat" href="${href}">${inner}</a>` : `<div class="sga-stat">${inner}</div>`;
 	}).join("") || '<div class="sga-empty">No attendance this month</div>';
 	const note = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;
-	const ci = (checkins || []).map((c) => {
-		const io = (c.log_type || "").toUpperCase(), cls = io === "IN" ? "in" : "out";
-		return `<div class="sga-ci"><span class="io ${cls}">${_esc(io || "—")}</span><span class="tm">${_esc(fmtDT(c.time))}</span></div>`;
+	// group check-ins by day: first IN and last OUT per day, most recent first
+	const byDay = {};
+	(checkins || []).forEach((c) => {
+		if (!c.time) return;
+		const k = String(c.time).slice(0, 10);
+		const g2 = (byDay[k] = byDay[k] || { date: c.time, in: null, out: null });
+		const io = (c.log_type || "").toUpperCase();
+		if (io === "IN") { if (!g2.in || c.time < g2.in) g2.in = c.time; }
+		else if (io === "OUT") { if (!g2.out || c.time > g2.out) g2.out = c.time; }
+	});
+	const tm = (t) => { if (!t) return "—"; try { return moment(t).format("h:mm A"); } catch (e) { return t; } };
+	const dl = (t) => { try { return moment(t).format("ddd D MMM"); } catch (e) { return t; } };
+	const ci = Object.keys(byDay).sort().reverse().slice(0, 7).map((k) => {
+		const r = byDay[k];
+		return `<div class="sga-ciday"><span class="d">${_esc(dl(r.date))}</span><span class="io in">IN ${_esc(tm(r.in))}</span><span class="io out">OUT ${_esc(tm(r.out))}</span></div>`;
 	}).join("") || '<div class="sga-empty">No check-ins</div>';
 	return `<div class="sga-grid k2">
 	  <div class="sga-card"><div class="sga-qtitle">Days this month</div><div class="sga-stats sga-stats-sm">${tiles}</div>${note}</div>
@@ -751,6 +762,12 @@ a.sga-card:hover,.sga-card.kpi:hover{transform:translateY(-2px);box-shadow:0 14p
 .sga-ci .io.in{background:color-mix(in srgb,var(--sga-good) 16%,transparent);color:var(--sga-good)}
 .sga-ci .io.out{background:color-mix(in srgb,var(--sga-slate) 20%,transparent);color:var(--sga-slate2)}
 .sga-ci .tm{color:var(--sga-ink2)}
+.sga-ciday{display:flex;align-items:center;gap:10px;padding:8px 4px;border-top:1px solid var(--sga-line);font-size:12.5px}
+.sga-ciday:first-child{border-top:0}
+.sga-ciday .d{font-weight:650;min-width:82px}
+.sga-ciday .io{font-size:11px;font-weight:600;padding:2px 9px;border-radius:8px;white-space:nowrap}
+.sga-ciday .io.in{background:color-mix(in srgb,var(--sga-good) 15%,transparent);color:var(--sga-good)}
+.sga-ciday .io.out{background:color-mix(in srgb,var(--sga-bad) 14%,transparent);color:var(--sga-bad)}
 .sga-donwrap{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
 .sga-donut{--s:158px;width:var(--s);height:var(--s);flex:0 0 var(--s);border-radius:50%;position:relative;
  -webkit-mask:radial-gradient(circle at center,transparent 47px,#000 48px);mask:radial-gradient(circle at center,transparent 47px,#000 48px)}

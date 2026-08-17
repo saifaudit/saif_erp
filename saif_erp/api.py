@@ -127,10 +127,11 @@ def _attendance_for(emp, month=None):
 	def is_off(dt):
 		return dt in holiday_dates or (wo_idx is not None and dt.weekday() == wo_idx)
 
+	# Count attendance exactly as recorded, so every tile matches its click-through
+	# list. (Sundays marked "Absent" therefore show up — a data pattern to fix at the
+	# source rather than hide here.)
 	counts = {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0, "Work From Home": 0}
 	for r in frappe.db.sql("select attendance_date, status from `tabAttendance` where employee=%s and attendance_date between %s and %s and docstatus=1", (emp, month_start, cap_end), as_dict=True):
-		if r.status in ("Absent", "On Leave", "Half Day") and is_off(frappe.utils.getdate(r.attendance_date)):
-			continue  # can't be absent/on-leave on a weekly-off or public holiday
 		counts[r.status] = counts.get(r.status, 0) + 1
 	elapsed = (cap_end - month_start).days + 1
 	working_days = sum(1 for i in range(elapsed) if not is_off(month_start + timedelta(days=i)))
@@ -186,7 +187,7 @@ def _personal(emp):
 	my_attendance = _attendance_for(emp)
 	my_checkins = frappe.get_all(
 		"Employee Checkin", filters={"employee": emp},
-		fields=["log_type", "time"], order_by="time desc", limit=8,
+		fields=["log_type", "time"], order_by="time desc", limit=40,
 	)
 	return {"my_leave": my_leave, "my_attendance": my_attendance, "my_checkins": my_checkins}
 

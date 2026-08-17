@@ -607,6 +607,8 @@ function attCard(att, checkins) {
 		return href ? `<a class="sga-stat" href="${href}">${inner}</a>` : `<div class="sga-stat">${inner}</div>`;
 	}).join("") || '<div class="sga-empty">No attendance this month</div>';
 	const note = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;
+	// self-service: missed a punch / need a day marked -> raise an Attendance Request (HR approves)
+	const reqBtn = `<a href="/app/attendance-request/new" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:8px 14px;background:var(--sga-surface2);border:1px solid var(--sga-line);border-radius:10px;color:var(--sga-brand);text-decoration:none;font-weight:600;font-size:12.5px">🗓️ Missed a punch? Request attendance</a>`;
 	// group check-ins by day: first IN and last OUT per day, most recent first
 	const byDay = {};
 	(checkins || []).forEach((c) => {
@@ -624,7 +626,7 @@ function attCard(att, checkins) {
 		return `<div class="sga-ciday"><span class="d">${_esc(dl(r.date))}</span><span class="io in">IN ${_esc(tm(r.in))}</span><span class="io out">OUT ${_esc(tm(r.out))}</span></div>`;
 	}).join("") || '<div class="sga-empty">No check-ins</div>';
 	return `<div class="sga-grid k2">
-	  <div class="sga-card"><div class="sga-qtitle">Days this month</div><div class="sga-stats sga-stats-sm">${tiles}</div>${note}</div>
+	  <div class="sga-card"><div class="sga-qtitle">Days this month</div><div class="sga-stats sga-stats-sm">${tiles}</div>${note}${reqBtn}</div>
 	  <div class="sga-card"><div class="sga-qtitle">Recent check-ins</div><div class="sga-cilist">${ci}</div></div>
 	</div>`;
 }

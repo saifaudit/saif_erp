@@ -282,5 +282,5 @@ fixtures = [
 		"Leave Application", "Leave Application -Total2", "Leave Application-Rejected",
 	]]]},
 	# SAIF dashboard workspaces
-	{"doctype": "Workspace", "filters": [["name", "in", ["Admin Dash", "Job Orders"]]]},
+	{"doctype": "Workspace", "filters": [["name", "in", ["Admin Dash", "Job Orders", "SGA Reports"]]]},
 ]

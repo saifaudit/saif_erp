@@ -263,5 +263,176 @@
   ],
   "title": "Job Orders",
   "type": "Workspace"
+ },
+ {
+  "app": "saif_erp",
+  "charts": [],
+  "content": "[{\"id\": \"sga_r_hdr\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">SGA Reports</span>\", \"col\": 12}}, {\"id\": \"sga_r_card\", \"type\": \"card\", \"data\": {\"card_name\": \"SGA Reports\", \"col\": 6}}]",
+  "custom_blocks": [],
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "external_link": null,
+  "for_user": null,
+  "hide_custom": 0,
+  "icon": "file",
+  "indicator_color": "green",
+  "is_hidden": 0,
+  "label": "SGA Reports",
+  "link_to": null,
+  "link_type": "DocType",
+  "links": [
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "SGA Reports",
+    "link_count": 0,
+    "link_to": null,
+    "link_type": "DocType",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Card Break"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "SGA Monthly Job Order Report",
+    "link_count": 0,
+    "link_to": "SGA Monthly Job Order Report",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 0,
+    "label": "Payment Status Report",
+    "link_count": 0,
+    "link_to": "Payment Status Report",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": "Job Order",
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "SGA Attendance and Leave",
+    "link_count": 0,
+    "link_to": "SGA Attendance and Leave",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "SGA Payroll Days Summary",
+    "link_count": 0,
+    "link_to": "SGA Payroll Days Summary",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "SGA Monthly Attendance Sheet",
+    "link_count": 0,
+    "link_to": "SGA Monthly Attendance Sheet",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "SGA Work Hours Summary",
+    "link_count": 0,
+    "link_to": "SGA Work Hours Summary",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   },
+   {
+    "dependencies": null,
+    "description": null,
+    "hidden": 0,
+    "icon": null,
+    "is_query_report": 1,
+    "label": "SGA Employee Leave Balance",
+    "link_count": 0,
+    "link_to": "SGA Employee Leave Balance",
+    "link_type": "Report",
+    "onboard": 0,
+    "only_for": null,
+    "report_ref_doctype": null,
+    "type": "Link"
+   }
+  ],
+  "modified": "2026-08-17 08:54:27.381882",
+  "module": "SAIF ERP",
+  "name": "SGA Reports",
+  "number_cards": [],
+  "parent_page": null,
+  "public": 1,
+  "quick_lists": [],
+  "restrict_to_domain": null,
+  "roles": [
+   {
+    "role": "System Manager"
+   },
+   {
+    "role": "HR Manager"
+   },
+   {
+    "role": "HR User"
+   },
+   {
+    "role": "Job Order Admin"
+   },
+   {
+    "role": "Job Order Partner"
+   },
+   {
+    "role": "Job Order Accountant"
+   }
+  ],
+  "sequence_id": 3.5,
+  "shortcuts": [],
+  "title": "SGA Reports",
+  "type": "Workspace"
  }
 ]

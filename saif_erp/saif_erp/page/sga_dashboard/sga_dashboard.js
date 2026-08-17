@@ -247,10 +247,14 @@ function render($root, d, actions) {
 	    </div>
 	  </div>
 	  <div class="sga-card">
-	    <div class="sga-rep-title">Reports — Job Order</div>
+	    <div class="sga-rep-title">SGA Reports</div>
 	    <div class="sga-replist">
 	      ${report("SGA Monthly Job Order Report")}
 	      ${report("Payment Status Report")}
+	      ${report("SGA Attendance and Leave")}
+	      ${report("SGA Payroll Days Summary")}
+	      ${report("SGA Monthly Attendance Sheet")}
+	      ${report("SGA Work Hours Summary")}
 	      ${report("SGA Employee Leave Balance")}
 	    </div>
 	  </div>

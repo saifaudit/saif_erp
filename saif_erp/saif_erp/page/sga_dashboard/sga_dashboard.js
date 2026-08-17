@@ -168,9 +168,9 @@ function render($root, d, actions) {
 	const funnelSec = section("Proposals → Job Order funnel", `
 	<div class="sga-funnel">
 	  ${fstep(p.total, "Total proposals", listHref("quotation", {}))}
-	  ${fstep(p.converted, `<span class="arw">→</span> Converted · <b>${conv}%</b>`, listHref("quotation", { custom_job_order: JSON.stringify(["is", "set"]) }))}
+	  ${fstep(p.converted, `<span class="arw">→</span> Converted · <b>${conv}%</b>`, listHref("quotation", { custom_job_order_created: 1 }))}
 	  ${fstep(p.awaiting_acceptance, "Awaiting client acceptance", listHref("quotation", { custom_client_acceptance_type: "Not Confirmed" }))}
-	  ${fstep(p.awaiting_jo, "Accepted · awaiting JO", listHref("quotation", { custom_job_order: JSON.stringify(["is", "not set"]), docstatus: "1" }))}
+	  ${fstep(p.awaiting_jo, "Accepted · awaiting JO", listHref("quotation", { custom_client_acceptance_confirmed: 1, custom_job_order_created: 0 }))}
 	</div>`);
 	if (d.full_mgmt) parts.push(apSec, qaSec, funnelSec);
 	else parts.push(qaSec, apSec, funnelSec); // Admin Support: create actions first
@@ -329,7 +329,7 @@ function render_limited($root, d) {
 	parts.push(section("My proposals → job orders", `
 	<div class="sga-funnel">
 	  ${fstep(mp.total, "My proposals", mineQ)}
-	  ${fstep(mp.converted, `<span class="arw">→</span> Converted · <b>${convPct}%</b>`, mineQ + '&custom_job_order=' + encodeURIComponent(JSON.stringify(["is", "set"])))}
+	  ${fstep(mp.converted, `<span class="arw">→</span> Converted · <b>${convPct}%</b>`, mineQ + "&custom_job_order_created=1")}
 	  ${fstep(mp.awaiting, "Awaiting client acceptance", mineQ + "&custom_client_acceptance_type=Not%20Confirmed")}
 	</div>`));
 

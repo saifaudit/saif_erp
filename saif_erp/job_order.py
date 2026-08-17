@@ -41,6 +41,34 @@ STATE_TO_APPROVAL = {
 }
 
 
+@frappe.whitelist()
+def make_job_order(source_name, target_doc=None):
+	"""Pre-fill a new Job Order from an accepted Quotation (proposal), so Admin
+	Support doesn't re-key the details. Opens a draft the user reviews + saves."""
+	from frappe.model.mapper import get_mapped_doc
+
+	def postprocess(source, target):
+		target.quotation = source.name
+		target.proposal_ref = source.get("ref_no") or source.name
+		target.company = source.get("company")
+		target.job_date = frappe.utils.nowdate()
+		if source.get("quotation_to") == "Customer":
+			target.customer = source.get("party_name")
+		target.proposed_amount = source.get("grand_total")
+		if source.get("items"):
+			target.service = source.items[0].get("item_code")
+		if source.get("custom_client_acceptance_notes"):
+			target.job_status_remark = source.get("custom_client_acceptance_notes")
+
+	return get_mapped_doc(
+		"Quotation", source_name,
+		{"Quotation": {"doctype": "Job Order"}},
+		target_doc, postprocess,
+	)
+	# NB: the existing 'update Quotation when Job Order is created' server script
+	# already links the proposal back on Job Order after_insert.
+
+
 def sync_approval_status(doc, method=None):
 	"""Mirror the Job Order Approval workflow_state onto the legacy approval_status field.
 

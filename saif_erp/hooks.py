@@ -273,7 +273,9 @@ fixtures = [
 		"Job Order-workflow_state", "Job Order-custom_review_sb", "Job Order-custom_reviewer_rating",
 		"Job Order-custom_review_remark", "Job Order-custom_reviewed_by", "Job Order-custom_review_date",
 	]]]},
-	{"doctype": "Client Script", "filters": [["name", "=", "Job Order - Reviewer Rating Access"]]},
+	{"doctype": "Client Script", "filters": [["name", "in", [
+		"Job Order - Reviewer Rating Access",
+		"JB button in quotation and hide create sales order"]]]},
 	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Job Order"], ["field_name", "=", "job_status"], ["property", "=", "options"]]},
 	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Credential Manager"], ["field_name", "=", "portal_password"], ["property", "=", "fieldtype"]]},
 	# SAIF dashboard — number cards (extended per redesign step)

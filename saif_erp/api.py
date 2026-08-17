@@ -266,7 +266,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 		# my proposal pipeline (accountants create proposals; this is their entry point)
 		my_proposals = {
 			"total": frappe.db.count("Quotation", {"owner": me}),
-			"converted": frappe.db.count("Quotation", {"owner": me, "custom_job_order": ["is", "set"]}),
+			"converted": frappe.db.count("Quotation", {"owner": me, "custom_job_order_created": 1}),
 			"awaiting": frappe.db.count("Quotation", {"owner": me, "custom_client_acceptance_type": "Not Confirmed"}),
 		}
 		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
@@ -430,9 +430,10 @@ def dashboard_data(period="year", company=None, att_month=None):
 
 	proposals = {
 		"total": frappe.db.count("Quotation", cfilt({})),
-		"converted": frappe.db.count("Quotation", cfilt({"custom_job_order": ["is", "set"]})),
+		"converted": frappe.db.count("Quotation", cfilt({"custom_job_order_created": 1})),
 		"awaiting_acceptance": frappe.db.count("Quotation", cfilt({"custom_client_acceptance_type": "Not Confirmed"})),
-		"awaiting_jo": frappe.db.count("Quotation", cfilt({"docstatus": 1, "custom_job_order": ["is", "not set"]})),
+		# accepted by the client but not yet turned into a Job Order
+		"awaiting_jo": frappe.db.count("Quotation", cfilt({"custom_client_acceptance_confirmed": 1, "custom_job_order_created": 0})),
 	}
 
 	def recent(status):

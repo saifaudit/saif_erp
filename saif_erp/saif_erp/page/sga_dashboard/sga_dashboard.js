@@ -567,9 +567,13 @@ function compliance_section(d) {
 
 function attCard(att, checkins) {
 	att = att || {};
+	// Only Present & WFH drill through: their tile count equals a plain status+date
+	// filter. Absent/On Leave/Half Day are holiday-adjusted (off-day records dropped
+	// from the count) so a raw list wouldn't match; Holidays is computed and the
+	// Holiday List isn't visible to accountants — so those stay non-clickable.
 	const attDefs = [
-		["Present", "var(--sga-good)", att.Present, true, "Present"], ["Absent", "var(--sga-bad)", att.Absent, true, "Absent"],
-		["On Leave", "var(--sga-slate2)", att["On Leave"], false, "On Leave"], ["Half Day", "var(--sga-amber)", att["Half Day"], false, "Half Day"],
+		["Present", "var(--sga-good)", att.Present, true, "Present"], ["Absent", "var(--sga-bad)", att.Absent, true, null],
+		["On Leave", "var(--sga-slate2)", att["On Leave"], false, null], ["Half Day", "var(--sga-amber)", att["Half Day"], false, null],
 		["WFH", "var(--sga-brand-soft)", att["Work From Home"], false, "Work From Home"], ["Holidays", "var(--sga-slate)", att.holidays, true, null]];
 	const attLink = (status) => {
 		if (!att.employee || !status || !att.from_date) return null;
@@ -578,9 +582,7 @@ function attCard(att, checkins) {
 	};
 	const tiles = attDefs.filter(([, , v, a]) => a || v).map(([k, c, v, , status]) => {
 		const inner = `<span class="dot" style="background:${c}"></span><div class="v">${_int(v || 0)}</div><div class="n">${_esc(k)}</div>`;
-		// Holidays isn't an Attendance status; point at the Holiday List. Use a query
-		// filter (not a path) because the list name can contain "/" which breaks routing.
-		const href = status ? attLink(status) : (k === "Holidays" && att.holiday_list ? "/app/holiday-list?name=" + encodeURIComponent(att.holiday_list) : null);
+		const href = status ? attLink(status) : null;
 		return href ? `<a class="sga-stat" href="${href}">${inner}</a>` : `<div class="sga-stat">${inner}</div>`;
 	}).join("") || '<div class="sga-empty">No attendance this month</div>';
 	const note = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;

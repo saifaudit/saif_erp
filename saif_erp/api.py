@@ -497,6 +497,8 @@ def dashboard_data(period="year", company=None, att_month=None):
 	approvals = {
 		"jo_pending": frappe.db.count("Job Order", {"approval_status": "Pending"}),
 		"leave_pending": frappe.db.count("Leave Application", {"status": "Open"}),
+		# attendance requests awaiting action (drafts not yet approved/submitted)
+		"attendance_pending": frappe.db.count("Attendance Request", {"docstatus": 0}),
 	}
 
 	# Job Order aging (operational — kept for Admin Support too). Company-scoped

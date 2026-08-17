@@ -158,9 +158,10 @@ function render($root, d, actions) {
 	// approvals-first order.
 	const ap = d.approvals || {};
 	const apSec = section("Approvals waiting", `
-	<div class="sga-grid k2">
+	<div class="sga-grid k3">
 	  ${kpi("Job Orders to approve", _int(ap.jo_pending), "Pending approval · click to review", "var(--sga-orange)", null, joHref({ approval_status: "Pending" }))}
 	  ${kpi("Leave to approve", _int(ap.leave_pending), "Open leave applications · click to review", "var(--sga-orange)", null, listHref("leave-application", { status: "Open" }))}
+	  ${kpi("Attendance requests", _int(ap.attendance_pending), "Missed-punch / present requests · click to review", "var(--sga-orange)", null, "/app/attendance-request/view/list?docstatus=0")}
 	</div>`);
 	const qaSec = section("Quick actions", `<div class="sga-qa">${quickActions(true)}</div>`, true);
 	const p = d.proposals || {};

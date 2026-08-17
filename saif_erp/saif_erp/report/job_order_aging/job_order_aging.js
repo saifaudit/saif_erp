@@ -8,7 +8,7 @@ frappe.query_reports["Job Order Aging"] = {
 		{ fieldname: "accountant", label: __("Accountant"), fieldtype: "Link", options: "User" },
 		{
 			fieldname: "bucket", label: __("Age bucket"), fieldtype: "Select",
-			options: ["", "≤ 10 days", "11 – 20 days", "21 – 30 days", "31 – 45 days", "46 – 90 days", "90+ days"],
+			options: ["", "≤ 10 days", "11 – 20 days", "21 – 30 days", "31 – 45 days", "46 – 90 days", "91 – 180 days", "181 – 365 days", "365+ days"],
 		},
 	],
 
@@ -16,7 +16,8 @@ frappe.query_reports["Job Order Aging"] = {
 	formatter(value, row, column, data, default_formatter) {
 		const colors = {
 			"≤ 10 days": "#22a06b", "11 – 20 days": "#4a9de0", "21 – 30 days": "#7c6ee6",
-			"31 – 45 days": "#e6a817", "46 – 90 days": "#e8804d", "90+ days": "#e0533d",
+			"31 – 45 days": "#e6a817", "46 – 90 days": "#e8804d",
+			"91 – 180 days": "#e0533d", "181 – 365 days": "#c1272d", "365+ days": "#8b1a1a",
 		};
 		const c = (data && colors[data.bucket]) || "#888";
 		if (data && column.fieldname === "bucket") {

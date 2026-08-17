@@ -14,7 +14,9 @@ BUCKETS = [
 	("21 – 30 days", 21, 30, "#7c6ee6", "Blue"),
 	("31 – 45 days", 31, 45, "#e6a817", "Orange"),
 	("46 – 90 days", 46, 90, "#e8804d", "Orange"),
-	("90+ days", 91, None, "#e0533d", "Red"),
+	("91 – 180 days", 91, 180, "#e0533d", "Red"),
+	("181 – 365 days", 181, 365, "#c1272d", "Red"),
+	("365+ days", 366, None, "#8b1a1a", "Red"),
 ]
 
 MGMT_ROLES = {"System Manager", "Job Order Admin", "Job Order Partner",

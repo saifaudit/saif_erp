@@ -153,27 +153,27 @@ function render($root, d, actions) {
 	  ${ctx(d.counts.credentials, "Credentials", listHref("credential-manager", {}))}
 	</div>`);
 
-	// Approvals waiting — the frequently-used Admin Dash queues, now clickable
+	// Build the three top sections, then order them by role: Admin Support leads
+	// with create actions (their most-used activity); full management keeps the
+	// approvals-first order.
 	const ap = d.approvals || {};
-	parts.push(section("Approvals waiting", `
+	const apSec = section("Approvals waiting", `
 	<div class="sga-grid k2">
 	  ${kpi("Job Orders to approve", _int(ap.jo_pending), "Pending Approval · click to review", "var(--sga-orange)", null, joHref({ workflow_state: "Pending Approval" }))}
 	  ${kpi("Leave to approve", _int(ap.leave_pending), "Open leave applications · click to review", "var(--sga-orange)", null, listHref("leave-application", { status: "Open" }))}
-	</div>`));
-
-	// Quick actions — the handy shortcuts that used to live on the Home workspace
-	parts.push(section("Quick actions", `<div class="sga-qa">${quickActions(true)}</div>`, true));
-
-	// Proposals → Job Order funnel (near the top; each step opens the filtered list)
+	</div>`);
+	const qaSec = section("Quick actions", `<div class="sga-qa">${quickActions(true)}</div>`, true);
 	const p = d.proposals || {};
 	const conv = p.total ? Math.round((p.converted / p.total) * 100) : 0;
-	parts.push(section("Proposals → Job Order funnel", `
+	const funnelSec = section("Proposals → Job Order funnel", `
 	<div class="sga-funnel">
 	  ${fstep(p.total, "Total proposals", listHref("quotation", {}))}
 	  ${fstep(p.converted, `<span class="arw">→</span> Converted · <b>${conv}%</b>`, listHref("quotation", { custom_job_order: JSON.stringify(["is", "set"]) }))}
 	  ${fstep(p.awaiting_acceptance, "Awaiting client acceptance", listHref("quotation", { custom_client_acceptance_type: "Not Confirmed" }))}
 	  ${fstep(p.awaiting_jo, "Accepted · awaiting JO", listHref("quotation", { custom_job_order: JSON.stringify(["is", "not set"]), docstatus: "1" }))}
-	</div>`));
+	</div>`);
+	if (d.full_mgmt) parts.push(apSec, qaSec, funnelSec);
+	else parts.push(qaSec, apSec, funnelSec); // Admin Support: create actions first
 
 	// company filter (group has multiple entities)
 	if ((d.companies || []).length > 1) {

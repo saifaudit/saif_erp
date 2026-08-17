@@ -78,12 +78,12 @@ function quickActions(isManager) {
 	items.push(
 		["My Job Orders", joHref({})],
 		["Jobs in Progress", joHref({ job_status: "Progress" })],
+		["Credential Manager", listHref("credential-manager", {})],
 		["+ Leave Application", "/app/leave-application/new"]
 	);
 	if (isManager) {
 		items.push(
 			["Customers", listHref("customer", {})],
-			["Credential Manager", listHref("credential-manager", {})],
 			["Physical Files", listHref("physical-file-management", {})]
 		);
 	}
@@ -331,6 +331,7 @@ function render_limited($root, d) {
 	  ${fstep(mp.total, "My proposals", mineQ)}
 	  ${fstep(mp.converted, `<span class="arw">→</span> Converted · <b>${convPct}%</b>`, mineQ + "&custom_job_order_created=1")}
 	  ${fstep(mp.awaiting, "Awaiting client acceptance", mineQ + "&custom_client_acceptance_type=Not%20Confirmed")}
+	  ${fstep(mp.awaiting_jo, "Accepted · awaiting JO", mineQ + "&custom_client_acceptance_confirmed=1&custom_job_order_created=0&docstatus=1")}
 	</div>`));
 
 	// quick actions for staff (create proposal, apply for leave, jump to my jobs)
@@ -371,7 +372,7 @@ function render_limited($root, d) {
 	const paytiles = PAY_META.filter(([k]) => (d.my_payment || {})[k]).map(([k, c]) =>
 		`<a class="sga-stat" href="${joHref({ payment_status: k })}"><span class="dot" style="background:${c}"></span><div class="v">${_int(d.my_payment[k])}</div><div class="n">${_esc(k)}</div></a>`).join("") || '<div class="sga-empty">None</div>';
 	parts.push(section("My work mix", `<div class="sga-grid k2">
-	  <div class="sga-card">${hbars(d.my_by_service, "var(--sga-brand)", "My jobs by service")}</div>
+	  <div class="sga-card">${hbars(shortSvcRows(d.my_by_service), "var(--sga-brand)", "My jobs by service")}</div>
 	  <div class="sga-card"><div class="sga-qtitle">My jobs by payment status</div><div class="sga-stats sga-stats-sm">${paytiles}</div></div>
 	</div>`));
 
@@ -440,11 +441,20 @@ function donut(pay) {
 	  <div class="mid"><b>${paidPct}%</b><span>Paid</span></div></div>
 	  <div class="sga-legend">${legend.join("")}</div></div>`;
 }
+// shorten long service names for chart labels: drop the "for the year ended …"
+// tail and cap length; keep the full name as a hover tooltip (r.full).
+function shortSvcRows(rows) {
+	return (rows || []).map((r) => {
+		let s = String(r.label || "").split(/\s+for\s+the\s+/i)[0].trim();
+		if (s.length > 34) s = s.slice(0, 33).trim() + "…";
+		return { value: r.value, full: r.label, label: s || "Unknown" };
+	});
+}
 function hbars(rows, color, title, linkFn) {
 	rows = rows || [];
 	const max = Math.max(1, ...rows.map((r) => r.value));
 	const bars = rows.map((r) => {
-		const inner = `<div class="top"><span class="lab">${_esc(r.label)}</span><span class="val">${_int(r.value)}</span></div>
+		const inner = `<div class="top"><span class="lab" title="${_esc(r.full || r.label)}">${_esc(r.label)}</span><span class="val">${_int(r.value)}</span></div>
 		 <div class="track"><i style="width:${Math.max(3, (r.value / max) * 100)}%"></i></div>`;
 		const href = linkFn && linkFn(r);
 		return href ? `<a class="hbar lnk" href="${href}">${inner}</a>` : `<div class="hbar">${inner}</div>`;
@@ -558,11 +568,19 @@ function compliance_section(d) {
 function attCard(att, checkins) {
 	att = att || {};
 	const attDefs = [
-		["Present", "var(--sga-good)", att.Present, true], ["Absent", "var(--sga-bad)", att.Absent, true],
-		["On Leave", "var(--sga-slate2)", att["On Leave"], false], ["Half Day", "var(--sga-amber)", att["Half Day"], false],
-		["WFH", "var(--sga-brand-soft)", att["Work From Home"], false], ["Holidays", "var(--sga-slate)", att.holidays, true]];
-	const tiles = attDefs.filter(([, , v, a]) => a || v).map(([k, c, v]) =>
-		`<div class="sga-stat"><span class="dot" style="background:${c}"></span><div class="v">${_int(v || 0)}</div><div class="n">${_esc(k)}</div></div>`).join("") || '<div class="sga-empty">No attendance this month</div>';
+		["Present", "var(--sga-good)", att.Present, true, "Present"], ["Absent", "var(--sga-bad)", att.Absent, true, "Absent"],
+		["On Leave", "var(--sga-slate2)", att["On Leave"], false, "On Leave"], ["Half Day", "var(--sga-amber)", att["Half Day"], false, "Half Day"],
+		["WFH", "var(--sga-brand-soft)", att["Work From Home"], false, "Work From Home"], ["Holidays", "var(--sga-slate)", att.holidays, true, null]];
+	const attLink = (status) => {
+		if (!att.employee || !status || !att.from_date) return null;
+		const df = encodeURIComponent(JSON.stringify(["between", [att.from_date, att.to_date]]));
+		return `/app/attendance/view/list?employee=${encodeURIComponent(att.employee)}&status=${encodeURIComponent(status)}&docstatus=1&attendance_date=${df}`;
+	};
+	const tiles = attDefs.filter(([, , v, a]) => a || v).map(([k, c, v, , status]) => {
+		const inner = `<span class="dot" style="background:${c}"></span><div class="v">${_int(v || 0)}</div><div class="n">${_esc(k)}</div>`;
+		const href = status ? attLink(status) : (k === "Holidays" && att.holiday_list ? "/app/holiday-list/" + encodeURIComponent(att.holiday_list) : null);
+		return href ? `<a class="sga-stat" href="${href}">${inner}</a>` : `<div class="sga-stat">${inner}</div>`;
+	}).join("") || '<div class="sga-empty">No attendance this month</div>';
 	const note = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;
 	const ci = (checkins || []).map((c) => {
 		const io = (c.log_type || "").toUpperCase(), cls = io === "IN" ? "in" : "out";

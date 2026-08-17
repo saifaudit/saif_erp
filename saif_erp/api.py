@@ -135,7 +135,8 @@ def _attendance_for(emp, month=None):
 	elapsed = (cap_end - month_start).days + 1
 	working_days = sum(1 for i in range(elapsed) if not is_off(month_start + timedelta(days=i)))
 	return {**counts, "holidays": elapsed - working_days, "working_days": working_days,
-	        "holiday_list": emp_hl, "month": label}
+	        "holiday_list": emp_hl, "month": label,
+	        "employee": emp, "from_date": str(month_start), "to_date": str(cap_end)}
 
 
 def hr_report_exclude_names():
@@ -263,6 +264,8 @@ def dashboard_data(period="year", company=None, att_month=None):
 			"total": frappe.db.count("Quotation", {"owner": me}),
 			"converted": frappe.db.count("Quotation", {"owner": me, "custom_job_order_created": 1}),
 			"awaiting": frappe.db.count("Quotation", {"owner": me, "custom_client_acceptance_type": "Not Confirmed"}),
+			# my proposals accepted + submitted but still not turned into a Job Order
+			"awaiting_jo": frappe.db.count("Quotation", {"owner": me, "custom_client_acceptance_confirmed": 1, "custom_job_order_created": 0, "docstatus": 1}),
 		}
 		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
 		_p = _personal(emp)

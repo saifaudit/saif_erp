@@ -258,13 +258,6 @@ def dashboard_data(period="year", company=None, att_month=None):
 			f"select payment_status v, count(*) c from {jo} where accountant=%(me)s and docstatus=1 group by payment_status",
 			{"me": me}, as_dict=True,
 		)}
-		my_trend = frappe.db.sql(
-			f"""select DATE_FORMAT(job_date, '%%Y-%%m') label, count(*) created,
-				sum(case when job_status='Finished' then 1 else 0 end) finished
-			from {jo} where accountant=%(me)s and docstatus=1 and job_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
-			group by label order by label""",
-			{"me": me}, as_dict=True,
-		)
 		# my proposal pipeline (accountants create proposals; this is their entry point)
 		my_proposals = {
 			"total": frappe.db.count("Quotation", {"owner": me}),
@@ -277,7 +270,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 		return {
 			"greeting": greeting, "manager": False, "my_status": my_status, "my_counts": my_counts,
 			"recent_mine": recent, "my_leave": my_leave, "my_action": my_action,
-			"my_by_service": my_by_service, "my_payment": my_payment, "my_trend": my_trend,
+			"my_by_service": my_by_service, "my_payment": my_payment,
 			"my_attendance": my_attendance, "my_checkins": my_checkins, "my_proposals": my_proposals,
 		}
 

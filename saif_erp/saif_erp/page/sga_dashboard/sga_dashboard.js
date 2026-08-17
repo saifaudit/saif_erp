@@ -367,13 +367,6 @@ function render_limited($root, d) {
 	}).join("") || '<div class="sga-empty">No job orders assigned to you yet.</div>';
 	parts.push(section("My job status", `<div class="sga-stats">${tiles}</div>`));
 
-	// my throughput trend
-	if ((d.my_trend || []).length) {
-		parts.push(section("My throughput · created vs finished", `<div class="sga-card">${trend2(d.my_trend, [
-			{ key: "created", label: "Created", color: "var(--sga-slate2)" },
-			{ key: "finished", label: "Finished", color: "var(--sga-good)" }])}</div>`, true));
-	}
-
 	// my work mix + my payment status
 	const paytiles = PAY_META.filter(([k]) => (d.my_payment || {})[k]).map(([k, c]) =>
 		`<a class="sga-stat" href="${joHref({ payment_status: k })}"><span class="dot" style="background:${c}"></span><div class="v">${_int(d.my_payment[k])}</div><div class="n">${_esc(k)}</div></a>`).join("") || '<div class="sga-empty">None</div>';

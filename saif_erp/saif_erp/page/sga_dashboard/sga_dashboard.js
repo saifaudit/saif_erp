@@ -67,15 +67,21 @@ function mountSalesChart(sm) {
 		tooltipOptions: { formatTooltipY: (v) => kAED(v) },
 	});
 }
+function canCreateJO() {
+	// Job Orders are created by Admin / Admin Support (e.g. Allysa), not accountants
+	return ["System Manager", "Job Order Admin", "Job Order Admin Support"].some((r) => frappe.user.has_role(r));
+}
 function quickActions(isManager) {
-	const items = [
-		["+ Leave Application", "/app/leave-application/new"],
+	// Accountants create Proposals; Admin/Admin Support also create Job Orders
+	const items = [["+ Proposal", "/app/quotation/new"]];
+	if (canCreateJO()) items.unshift(["+ Job Order", "/app/job-order/new"]);
+	items.push(
 		["My Job Orders", joHref({})],
 		["Jobs in Progress", joHref({ job_status: "Progress" })],
-	];
+		["+ Leave Application", "/app/leave-application/new"]
+	);
 	if (isManager) {
 		items.push(
-			["+ Proposal", "/app/quotation/new"],
 			["Customers", listHref("customer", {})],
 			["Credential Manager", listHref("credential-manager", {})],
 			["Physical Files", listHref("physical-file-management", {})]
@@ -240,10 +246,10 @@ function render($root, d, actions) {
 	<div class="sga-grid k2">
 	  <div class="sga-card">
 	    <div class="sga-links">
-	      ${shortcut("Full Job Orders List", `${d.counts.job_orders} total`, "/app/job-order", "list")}
 	      ${shortcut("Create Job Order", "New", "/app/job-order/new", "add")}
+	      ${shortcut("Create Proposal", "New", "/app/quotation/new", "add")}
+	      ${shortcut("Full Job Orders List", `${d.counts.job_orders} total`, "/app/job-order", "list")}
 	      ${shortcut("Credential Manager", `${d.counts.credentials} total`, "/app/credential-manager", "lock")}
-	      ${shortcut("Payment Status Report", "", "/app/query-report/Payment Status Report", "small-file")}
 	    </div>
 	  </div>
 	  <div class="sga-card">
@@ -356,9 +362,10 @@ function render_limited($root, d) {
 	const att = d.my_attendance || {};
 	parts.push(section(`My attendance · ${_esc(att.month || "this month")}`, attCard(att, d.my_checkins)));
 
-	// quick actions
+	// quick actions — accountants create Proposals (not Job Orders)
 	parts.push(section("Quick actions", `<div class="sga-card"><div class="sga-links">
-	  ${shortcut("Create Job Order", "New", "/app/job-order/new", "add")}
+	  ${shortcut("Create Proposal", "New", "/app/quotation/new", "add")}
+	  ${shortcut("My Proposals", "", "/app/quotation?owner=" + encodeURIComponent(g.user || ""), "list")}
 	  ${shortcut("My Job Orders", "", "/app/job-order?accountant=" + encodeURIComponent(g.user || ""), "list")}
 	  ${shortcut("Apply for Leave", "", "/app/leave-application/new", "calendar")}
 	  ${shortcut("My Leave Balance", "", "/app/query-report/SGA Employee Leave Balance", "small-file")}

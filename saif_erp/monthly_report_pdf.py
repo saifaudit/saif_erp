@@ -54,6 +54,7 @@ PRINT_COLS = [
 	("customer", "Customer"),
 	("service", "Service"),
 	("job_status", "Status"),
+	("reviewer_rating", "Review"),
 	("job_date", "Job Date"),
 	("aging", "Aging"),
 	("carry_forward", "C/F"),
@@ -118,6 +119,9 @@ def render_html(employee=None, from_date=None, to_date=None):
 			elif f == "carry_forward":
 				cls = "cf" if v == "Yes" else ""
 				tds.append("<td class='%s'>%s</td>" % (cls, _esc(v)))
+			elif f == "reviewer_rating":
+				stars = R.star_html(round(flt(v) * 5), 11) if v else "<span style='color:#bbb'>—</span>"
+				tds.append("<td style='white-space:nowrap'>%s</td>" % stars)
 			else:
 				tds.append("<td>%s</td>" % _esc(v))
 		body_rows.append("<tr>%s</tr>" % "".join(tds))

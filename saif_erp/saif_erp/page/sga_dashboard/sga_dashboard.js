@@ -184,17 +184,19 @@ function render($root, d, actions) {
 		  ${d.company ? `<span class="sga-scope">Showing ${_esc(d.company)} only</span>` : `<span class="sga-scope muted">All group entities</span>`}</div>`);
 	}
 
-	// KPI money — with This Year / All Time toggle
-	const toggle = `<div class="sga-period">
-	  <button data-p="year" class="${period === "year" ? "on" : ""}">This Year</button>
-	  <button data-p="all" class="${period === "all" ? "on" : ""}">All Time</button></div>`;
-	parts.push(`<div class="sga-sec"><div class="sga-eye"><h2>Financial snapshot · ${_esc(money.period_label || "This year")}</h2><span class="rule"></span>${toggle}</div>
-	<div class="sga-grid k4">
-	  ${kpi("Invoiced", _m(money.invoiced), `${money.period_label} · submitted job orders`, "var(--sga-brand)", null, joHref({}))}
-	  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate, joHref({ payment_status: "Paid" }))}
-	  ${kpi("Outstanding", _m(money.outstanding), `<span class="sga-chip warn">Invoiced minus collected</span>`, "var(--sga-orange)", null, joHref({ payment_status: "Not Paid" }))}
-	  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished all‑time`, "var(--sga-accent)", null, joHref({ job_status: "Progress" }))}
-	</div></div>`);
+	// KPI money — FULL MANAGEMENT ONLY (Admin Support gets an operational view)
+	if (d.full_mgmt) {
+		const toggle = `<div class="sga-period">
+		  <button data-p="year" class="${period === "year" ? "on" : ""}">This Year</button>
+		  <button data-p="all" class="${period === "all" ? "on" : ""}">All Time</button></div>`;
+		parts.push(`<div class="sga-sec"><div class="sga-eye"><h2>Financial snapshot · ${_esc(money.period_label || "This year")}</h2><span class="rule"></span>${toggle}</div>
+		<div class="sga-grid k4">
+		  ${kpi("Invoiced", _m(money.invoiced), `${money.period_label} · submitted job orders`, "var(--sga-brand)", null, joHref({}))}
+		  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate, joHref({ payment_status: "Paid" }))}
+		  ${kpi("Outstanding", _m(money.outstanding), `<span class="sga-chip warn">Invoiced minus collected</span>`, "var(--sga-orange)", null, joHref({ payment_status: "Not Paid" }))}
+		  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished all‑time`, "var(--sga-accent)", null, joHref({ job_status: "Progress" }))}
+		</div></div>`);
+	}
 
 	// Monthly sales — 3-year comparison (admin)
 	const sm = d.sales_monthly;
@@ -211,8 +213,8 @@ function render($root, d, actions) {
 		<div class="sga-card" style="margin-top:14px"><div id="sga-sales-chart"></div></div></div>`);
 	}
 
-	// Receivables aging
-	parts.push(aging_section(d));
+	// Receivables aging — full management only
+	if (d.full_mgmt) parts.push(aging_section(d));
 
 	// status tiles
 	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
@@ -224,15 +226,17 @@ function render($root, d, actions) {
 	}).join("");
 	parts.push(section("Job status · live", `<div class="sga-stats">${tiles}</div>`));
 
-	// payment donut + services
-	parts.push(section("Payments & services", `
-	<div class="sga-grid k2">
-	  <div class="sga-card">${donut(d.payment_status)}</div>
-	  <div class="sga-card">${svc_bars(d.by_service)}</div>
-	</div>`, true));
+	// payment donut + services — full management only
+	if (d.full_mgmt) {
+		parts.push(section("Payments & services", `
+		<div class="sga-grid k2">
+		  <div class="sga-card">${donut(d.payment_status)}</div>
+		  <div class="sga-card">${svc_bars(d.by_service)}</div>
+		</div>`, true));
 
-	// compliance & efficiency
-	parts.push(compliance_section(d));
+		// compliance & efficiency
+		parts.push(compliance_section(d));
+	}
 
 	// quick lists (recent job orders) + shortcuts/reports
 	parts.push(section("Recent job orders", `

@@ -8,11 +8,22 @@ MANAGEMENT_ROLES = {
 	"System Manager", "Job Order Admin", "Job Order Admin Support",
 	"Job Order Partner", "Job Order Semi Admin",
 }
-HR_ROLES = {"System Manager", "HR Manager", "HR User"}
+# FULL management sees financials/sales/aging; Admin Support gets an operational
+# view only (job orders, approvals, proposals) — no money/financial exposure.
+FULL_MANAGEMENT_ROLES = {
+	"System Manager", "Job Order Admin", "Job Order Partner", "Job Order Semi Admin",
+}
+# Team HR overview (leave balances, attendance) is management-only — not HR User
+# or Admin Support. Keeps sensitive all-staff HR data to top management.
+HR_ROLES = {"System Manager", "HR Manager"}
 
 
 def _is_manager():
 	return bool(MANAGEMENT_ROLES & set(frappe.get_roles()))
+
+
+def _is_full_mgmt():
+	return bool(FULL_MANAGEMENT_ROLES & set(frappe.get_roles()))
 
 
 def _is_hr():
@@ -446,8 +457,18 @@ def dashboard_data(period="year", company=None, att_month=None):
 		"leave_pending": frappe.db.count("Leave Application", {"status": "Open"}),
 	}
 
+	# Admin Support gets an OPERATIONAL view — strip financial data from the payload
+	# so money/sales/aging/debtors are neither shown nor sent.
+	full_mgmt = _is_full_mgmt()
+	if not full_mgmt:
+		money = {"invoiced": 0, "collected": 0, "outstanding": 0, "proposed": 0,
+		         "collection_rate": 0, "period": period, "period_label": money.get("period_label")}
+		sales_monthly = None
+		aging, aging_total, top_debtors, rev_trend, by_service = [], 0, [], [], []
+		compliance = turnaround = None
+
 	return {
-		"greeting": greeting, "manager": True, "counts": counts, "money": money,
+		"greeting": greeting, "manager": True, "full_mgmt": full_mgmt, "counts": counts, "money": money,
 		"approvals": approvals,
 		"active_jobs": active, "job_status": job_status, "payment_status": payment_status,
 		"by_service": by_service, "by_month": by_month, "by_accountant": by_accountant,

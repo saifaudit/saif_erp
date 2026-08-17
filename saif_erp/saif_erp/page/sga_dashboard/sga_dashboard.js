@@ -227,7 +227,7 @@ function render($root, d, actions) {
 	parts.push(section("Job status · live", `<div class="sga-stats">${tiles}</div>`));
 
 	// job order aging (active jobs by days since job date) — operational, shown to Admin Support too
-	parts.push(section("Job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.job_aging, d.company_scope ? "company=" + encodeURIComponent(d.company_scope) + "&" : "")}</div></div>`));
+	parts.push(section("Job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.job_aging, d.company_scope ? "company=" + encodeURIComponent(d.company_scope) + "&" : "")}</div><div style="margin-top:14px">${agingReportBtn()}</div></div>`));
 
 	// payment donut + services — full management only
 	if (d.full_mgmt) {
@@ -372,7 +372,7 @@ function render_limited($root, d) {
 	parts.push(section("My job status", `<div class="sga-stats">${tiles}</div>`));
 
 	// my job order aging (active jobs by days since job date)
-	parts.push(section("My job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.my_aging, "accountant=" + encodeURIComponent(g.user || "") + "&")}</div></div>`));
+	parts.push(section("My job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.my_aging, "accountant=" + encodeURIComponent(g.user || "") + "&")}</div><div style="margin-top:14px">${agingReportBtn()}</div></div>`));
 
 	// my work mix + my payment status
 	const paytiles = PAY_META.filter(([k]) => (d.my_payment || {})[k]).map(([k, c]) =>
@@ -446,6 +446,10 @@ function donut(pay) {
 	<div class="sga-donwrap"><div class="sga-donut" style="background:conic-gradient(${stops.join(",")})">
 	  <div class="mid"><b>${paidPct}%</b><span>Paid</span></div></div>
 	  <div class="sga-legend">${legend.join("")}</div></div>`;
+}
+// "View aging report" button -> the colour-coded Job Order Aging report
+function agingReportBtn() {
+	return `<a href="/app/query-report/Job Order Aging" style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;background:var(--sga-brand);color:#fff;border-radius:10px;text-decoration:none;font-weight:650;font-size:13px;box-shadow:var(--glass-sh)">📊 View aging report</a>`;
 }
 // Job Order aging tiles: clickable buckets (green→red) that drill into the matching
 // active-job list. extraParams scopes it (accountant=… for staff, company=… for mgmt).

@@ -1,0 +1,13 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Job Order",
+  "enabled": 1,
+  "modified": "2026-08-17 09:16:45.632183",
+  "module": null,
+  "name": "Job Order - Reviewer Rating Access",
+  "script": "frappe.ui.form.on('Job Order', {\n  refresh(frm) {\n    const reviewers = ['chandy@saifaudit.com','santhosh@saifaudit.com','Administrator'];\n    const can = reviewers.includes(frappe.session.user);\n    ['custom_reviewer_rating','custom_review_remark'].forEach(f => frm.set_df_property(f,'read_only', can?0:1));\n    if (!can) frm.set_df_property('custom_reviewer_rating','description','Only the reviewer (Chandy/Santhosh) can set this.');\n  }\n});\n",
+  "view": "Form"
+ }
+]

@@ -257,6 +257,8 @@ scheduler_events = {
 # Business logic ported from DB Server Scripts into app code
 doc_events = {
 	"Job Order": {
+		"validate": "saif_erp.job_order.enforce_review",
+		"before_update_after_submit": "saif_erp.job_order.enforce_review",
 		"on_update": "saif_erp.job_order.sync_approval_status",
 		"on_update_after_submit": "saif_erp.job_order.sync_approval_status",
 	},
@@ -267,7 +269,11 @@ fixtures = [
 	{"doctype": "Workflow", "filters": [["name", "=", "Job Order Approval"]]},
 	{"doctype": "Workflow State", "filters": [["name", "in", ["Draft", "Pending Approval", "Approved", "Rejected"]]]},
 	{"doctype": "Workflow Action Master", "filters": [["name", "in", ["Request Approval", "Approve", "Reject"]]]},
-	{"doctype": "Custom Field", "filters": [["name", "=", "Job Order-workflow_state"]]},
+	{"doctype": "Custom Field", "filters": [["name", "in", [
+		"Job Order-workflow_state", "Job Order-custom_review_sb", "Job Order-custom_reviewer_rating",
+		"Job Order-custom_review_remark", "Job Order-custom_reviewed_by", "Job Order-custom_review_date",
+	]]]},
+	{"doctype": "Client Script", "filters": [["name", "=", "Job Order - Reviewer Rating Access"]]},
 	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Job Order"], ["field_name", "=", "job_status"], ["property", "=", "options"]]},
 	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Credential Manager"], ["field_name", "=", "portal_password"], ["property", "=", "fieldtype"]]},
 	# SAIF dashboard — number cards (extended per redesign step)

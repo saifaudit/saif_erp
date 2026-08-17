@@ -121,7 +121,7 @@
   "document_type": "Quotation",
   "dynamic_filters_json": "[]",
   "filters_config": null,
-  "filters_json": "[[\"Quotation\", \"custom_client_acceptance_confirmed\", \"=\", \"1\", false], [\"Quotation\", \"custom_job_order_created\", \"=\", \"0\", false]]",
+  "filters_json": "[[\"Quotation\", \"custom_client_acceptance_confirmed\", \"=\", \"1\", false], [\"Quotation\", \"custom_job_order_created\", \"=\", \"0\", false], [\"Quotation\", \"docstatus\", \"=\", \"1\", false]]",
   "function": "Count",
   "is_public": 1,
   "is_standard": 0,

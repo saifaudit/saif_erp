@@ -336,23 +336,28 @@ function render_limited($root, d) {
 	// quick actions for staff (create proposal, apply for leave, jump to my jobs)
 	parts.push(section("Quick actions", `<div class="sga-qa">${quickActions(false)}</div>`, true));
 
-	// richer JO row: name · status on top, then company, then the reason/remark
-	const joDetailRow = (r) => {
-		const company = _esc(r.company || "");
-		const reason = _esc((r.job_status_remark || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean).join(" · "));
-		return `<a class="sga-qrow" style="align-items:flex-start" href="/app/job-order/${encodeURIComponent(r.name)}">
-			<span style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">
-				<span>${_esc(r.name)} · <b>${_esc(r.job_status || "")}</b></span>
-				${company ? `<span style="font-size:.82em;opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🏢 ${company}</span>` : ""}
-				${reason ? `<span style="font-size:.82em;opacity:.72;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">📝 ${reason}</span>` : ""}
-			</span>
-			<span class="t" style="flex-shrink:0">${_esc(_rel(r.modified))}</span>
-		</a>`;
+	// tabular JO list: JO# · client · company · status · reason · updated
+	const joTable = (list) => {
+		if (!list || !list.length) return '<div class="sga-empty">None</div>';
+		const body = list.map((r) => {
+			const m = STATUS_META[r.job_status] || { c: "var(--sga-slate)", l: r.job_status };
+			const reason = _esc((r.job_status_remark || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean).join(" · "));
+			return `<tr>
+				<td><a href="/app/job-order/${encodeURIComponent(r.name)}">${_esc(r.name)}</a></td>
+				<td class="cl">${_esc(r.customer || "")}</td>
+				<td class="co">${_esc(r.company || "")}</td>
+				<td><span class="sga-jst"><i style="background:${m.c}"></i>${_esc(m.l || r.job_status || "")}</span></td>
+				<td class="rsn">${reason}</td>
+				<td class="tm">${_esc(_rel(r.modified))}</td>
+			</tr>`;
+		}).join("");
+		return `<div class="sga-tblwrap"><table class="sga-jtbl">
+			<thead><tr><th>Job Order</th><th>Client</th><th>Company</th><th>Status</th><th>Reason</th><th>Updated</th></tr></thead>
+			<tbody>${body}</tbody></table></div>`;
 	};
 	// jobs needing my attention (to-do)
-	const action = (d.my_action || []).map(joDetailRow).join("");
-	if (action) {
-		parts.push(section("Needs my attention", `<div class="sga-card"><div class="sga-qtitle">Awaiting client data · on hold · under review</div><div class="sga-qlist">${action}</div></div>`));
+	if ((d.my_action || []).length) {
+		parts.push(section("Needs my attention", `<div class="sga-card"><div class="sga-qtitle">Awaiting client data · on hold · under review</div>${joTable(d.my_action)}</div>`));
 	}
 
 	const order = ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending", "Finished", "Closed (Failed)"];
@@ -377,12 +382,9 @@ function render_limited($root, d) {
 	  <div class="sga-card"><div class="sga-qtitle">My jobs by payment status</div><div class="sga-stats sga-stats-sm">${paytiles}</div></div>
 	</div>`));
 
-	// recent jobs + leave
-	const rows = (d.recent_mine || []).map(joDetailRow).join("") || '<div class="sga-empty">None</div>';
-	parts.push(section("My recent jobs & leave", `<div class="sga-grid k2">
-	  <div class="sga-card"><div class="sga-qtitle">Recent job orders</div><div class="sga-qlist">${rows}</div></div>
-	  <div class="sga-card">${myleave(d.my_leave)}</div>
-	</div>`));
+	// recent jobs (full-width table) + leave
+	parts.push(section("Recent job orders", `<div class="sga-card">${joTable(d.recent_mine)}</div>`));
+	parts.push(section("My leave", `<div class="sga-card">${myleave(d.my_leave)}</div>`));
 
 	// my attendance this month (Sundays + public holidays excluded) + recent check-ins
 	const att = d.my_attendance || {};
@@ -729,6 +731,19 @@ a.sga-card:hover,.sga-card.kpi:hover{transform:translateY(-2px);box-shadow:0 14p
 .sga-qlist{display:flex;flex-direction:column}
 .sga-qrow{display:flex;justify-content:space-between;gap:10px;padding:8px 6px;border-top:1px solid var(--sga-line);font-size:13px}
 .sga-qrow:first-child{border-top:0}.sga-qrow:hover{background:var(--sga-surface2)}.sga-qrow .t{color:var(--sga-muted);font-size:12px}
+.sga-tblwrap{overflow-x:auto}
+.sga-jtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.sga-jtbl th{text-align:left;color:var(--sga-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:6px 8px;border-bottom:1px solid var(--sga-line);white-space:nowrap}
+.sga-jtbl td{padding:7px 8px;border-top:1px solid var(--sga-line);vertical-align:top}
+.sga-jtbl tbody tr:first-child td{border-top:0}
+.sga-jtbl tbody tr:hover{background:var(--sga-surface2)}
+.sga-jtbl a{color:var(--sga-brand);font-weight:600;white-space:nowrap}
+.sga-jtbl .cl{color:var(--sga-ink);max-width:190px}
+.sga-jtbl .co{color:var(--sga-ink2);max-width:190px}
+.sga-jtbl .rsn{color:var(--sga-ink2);min-width:180px;max-width:360px}
+.sga-jtbl .tm{color:var(--sga-muted);white-space:nowrap}
+.sga-jst{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.sga-jst i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
 .sga-links{display:flex;flex-direction:column;gap:8px}
 .sga-shortcut{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--sga-line);border-radius:10px;background:var(--sga-surface2)}
 .sga-shortcut:hover{border-color:var(--sga-brand)}.sga-shortcut .lb{font-weight:600;font-size:13.5px;flex:1}.sga-shortcut .mt{color:var(--sga-muted);font-size:12px}

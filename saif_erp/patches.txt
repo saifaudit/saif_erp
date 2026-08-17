@@ -11,3 +11,4 @@ saif_erp.patches.retire_obsolete_reports
 saif_erp.patches.setup_employee_landing
 saif_erp.patches.setup_reviewer_role
 saif_erp.patches.trim_admin_support_profile
+saif_erp.patches.refile_saif_doctypes_module

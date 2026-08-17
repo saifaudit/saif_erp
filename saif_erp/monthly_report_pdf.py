@@ -54,7 +54,6 @@ PRINT_COLS = [
 	("customer", "Customer"),
 	("service", "Service"),
 	("job_status", "Status"),
-	("reviewer_rating", "Review"),
 	("job_date", "Job Date"),
 	("aging", "Aging"),
 	("carry_forward", "C/F"),

@@ -157,20 +157,14 @@ def rating_badge_html(m, show_rank=True):
 	if show_rank and m.get("rank"):
 		rank = ("<span style='margin-left:12px;color:%s;font-weight:600;font-size:12px'>"
 		        "Rank #%d</span>" % (C_GREEN, m["rank"]))
-	review = ""
-	if m.get("review_n"):
-		review = ("<span style='margin-left:12px;color:%s;font-weight:600;font-size:11px'>Reviewer mark</span> "
-		          "<b style='color:%s;font-size:14px'>%.1f</b><span style='color:%s;font-size:10px'>/10</span> "
-		          "<span style='color:%s;font-size:11px'>(%d)</span>"
-		          % (C_MUTED, C_GREEN, m["review_avg"], C_MUTED, C_MUTED, m["review_n"]))
 	return (
 		"<div style='display:inline-flex;align-items:center;gap:10px;padding:6px 14px;"
 		"background:%s;border:1px solid %s;border-radius:20px'>"
 		"<span style='font-size:11px;font-weight:700;letter-spacing:.6px;color:%s;"
 		"text-transform:uppercase'>Rating</span>%s"
 		"<span style='font-weight:800;color:%s;font-size:15px'>%d<span style='color:%s;"
-		"font-size:11px;font-weight:600'>/100</span></span>%s%s</div>"
-		% (C_TINT, C_LINE, C_MUTED, star_html(m.get("stars", 0)), C_GREEN, m.get("score", 0), C_MUTED, review, rank)
+		"font-size:11px;font-weight:600'>/100</span></span>%s</div>"
+		% (C_TINT, C_LINE, C_MUTED, star_html(m.get("stars", 0)), C_GREEN, m.get("score", 0), C_MUTED, rank)
 	)
 
 
@@ -184,7 +178,7 @@ def leaderboard_html(ratings):
 		for e in frappe.get_all("Employee", filters={"user_id": ["in", list(active)]},
 		                        fields=["user_id", "employee_name", "company"])
 	}
-	head = ("#", "Employee", "Company", "Works", "Finished", "Turn (d)", "Invoiced", "Review", "Score", "Rating")
+	head = ("#", "Employee", "Company", "Works", "Finished", "Turn (d)", "Invoiced", "Score", "Rating")
 	th = "".join("<th style='padding:6px 8px;text-align:%s'>%s</th>"
 	             % ("right" if h in ("Works", "Finished", "Turn (d)", "Invoiced", "Score", "#") else "left", h)
 	             for h in head)
@@ -193,15 +187,11 @@ def leaderboard_html(ratings):
 		name, company = emap.get(_u, (_u, ""))
 		turn = m["avg_turn"] if m["avg_turn"] is not None else "—"
 		bg = C_TINT if m["rank"] % 2 == 0 else "#fff"
-		review = ("<b style='color:%s'>%.1f</b><span style='color:%s;font-size:9px'>/10</span> "
-		          "<span style='color:%s'>(%d)</span>"
-		          % (C_GREEN, m["review_avg"], C_MUTED, C_MUTED, m["review_n"])) if m.get("review_n") else \
-		         ("<span style='color:%s'>—</span>" % C_MUTED)
 		cells = [
 			("r", m["rank"]), ("l", frappe.utils.escape_html(name)),
 			("lm", frappe.utils.escape_html(company)), ("r", m["volume"]),
 			("r", m["finished"]), ("r", turn),
-			("r", frappe.utils.fmt_money(m["invoiced"])), ("st", review), ("r", m["score"]),
+			("r", frappe.utils.fmt_money(m["invoiced"])), ("r", m["score"]),
 			("st", star_html(m["stars"], 12)),
 		]
 		tds = []
@@ -229,7 +219,6 @@ def get_columns():
 		{"label": _("Customer"), "fieldname": "customer", "fieldtype": "Link", "options": "Customer", "width": 175},
 		{"label": _("Service"), "fieldname": "service", "fieldtype": "Data", "width": 150},
 		{"label": _("Status"), "fieldname": "job_status", "fieldtype": "Data", "width": 130},
-		{"label": _("Review /10"), "fieldname": "reviewer_rating", "fieldtype": "Int", "width": 80},
 		{"label": _("Job Date"), "fieldname": "job_date", "fieldtype": "Date", "width": 90},
 		{"label": _("Aging"), "fieldname": "aging", "fieldtype": "Data", "width": 75},
 		{"label": _("Carry Fwd"), "fieldname": "carry_forward", "fieldtype": "Data", "width": 80},

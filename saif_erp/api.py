@@ -191,6 +191,42 @@ def _personal(emp):
 	return {"my_leave": my_leave, "my_attendance": my_attendance, "my_checkins": my_checkins}
 
 
+# Job Order aging buckets: (label, min_days, max_days) by days since job_date.
+JOB_AGING_DEFS = [
+	("≤10 days", 0, 10), ("11–20 days", 11, 20), ("21–30 days", 21, 30),
+	("31–45 days", 31, 45), ("46–90 days", 46, 90), ("90+ days", 91, None),
+]
+
+
+def _job_aging(jo, extra_where, params):
+	"""Aging of ACTIVE job orders (not Finished/Closed, not cancelled) by days since
+	job_date. `extra_where` is appended SQL ('' or ' AND ...'); `params` binds it.
+	Each bucket carries the job_date range (lo/hi) so the UI can build a drill-down
+	list filter that matches the count exactly."""
+	from frappe.utils import add_days, today
+	t = today()
+	r = frappe.db.sql(
+		f"""select
+			sum(datediff(curdate(), job_date) <= 10) b0,
+			sum(datediff(curdate(), job_date) between 11 and 20) b1,
+			sum(datediff(curdate(), job_date) between 21 and 30) b2,
+			sum(datediff(curdate(), job_date) between 31 and 45) b3,
+			sum(datediff(curdate(), job_date) between 46 and 90) b4,
+			sum(datediff(curdate(), job_date) > 90) b5
+		from {jo}
+		where docstatus < 2 and job_status not in ('Finished','Closed (Failed)')
+			and job_date is not null{extra_where}""",
+		params, as_dict=True,
+	)[0]
+	counts = [r.b0, r.b1, r.b2, r.b3, r.b4, r.b5]
+	out = []
+	for (label, dlo, dhi), c in zip(JOB_AGING_DEFS, counts):
+		hi = str(add_days(t, -dlo))
+		lo = str(add_days(t, -dhi)) if dhi is not None else None
+		out.append({"label": label, "count": int(c or 0), "lo": lo, "hi": hi})
+	return out
+
+
 ACTIVE_STATUSES = "('Open','Progress','Under Review','Awaiting Client Data','Temporarily stopped','Pending')"
 
 
@@ -267,13 +303,14 @@ def dashboard_data(period="year", company=None, att_month=None):
 			# my proposals accepted + submitted but still not turned into a Job Order
 			"awaiting_jo": frappe.db.count("Quotation", {"owner": me, "custom_client_acceptance_confirmed": 1, "custom_job_order_created": 0, "docstatus": 1}),
 		}
+		my_aging = _job_aging(jo, " AND accountant=%(me)s", {"me": me})
 		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
 		_p = _personal(emp)
 		my_leave, my_attendance, my_checkins = _p["my_leave"], _p["my_attendance"], _p["my_checkins"]
 		return {
 			"greeting": greeting, "manager": False, "my_status": my_status, "my_counts": my_counts,
 			"recent_mine": recent, "my_leave": my_leave, "my_action": my_action,
-			"my_by_service": my_by_service, "my_payment": my_payment,
+			"my_by_service": my_by_service, "my_payment": my_payment, "my_aging": my_aging,
 			"my_attendance": my_attendance, "my_checkins": my_checkins, "my_proposals": my_proposals,
 		}
 
@@ -461,6 +498,10 @@ def dashboard_data(period="year", company=None, att_month=None):
 		"leave_pending": frappe.db.count("Leave Application", {"status": "Open"}),
 	}
 
+	# Job Order aging (operational — kept for Admin Support too). Company-scoped
+	# like the rest of the manager view; company_scope lets the UI match the drill-down.
+	job_aging = _job_aging(jo, cw(), {})
+
 	# Admin Support gets an OPERATIONAL view — strip financial data from the payload
 	# so money/sales/aging/debtors are neither shown nor sent.
 	full_mgmt = _is_full_mgmt()
@@ -474,6 +515,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 	return {
 		"greeting": greeting, "manager": True, "full_mgmt": full_mgmt, "counts": counts, "money": money,
 		"approvals": approvals,
+		"job_aging": job_aging, "company_scope": comp,
 		"active_jobs": active, "job_status": job_status, "payment_status": payment_status,
 		"by_service": by_service, "by_month": by_month, "by_accountant": by_accountant,
 		"orphan_active": orphan_active, "proposals": proposals,

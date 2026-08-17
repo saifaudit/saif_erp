@@ -226,6 +226,9 @@ function render($root, d, actions) {
 	}).join("");
 	parts.push(section("Job status · live", `<div class="sga-stats">${tiles}</div>`));
 
+	// job order aging (active jobs by days since job date) — operational, shown to Admin Support too
+	parts.push(section("Job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.job_aging, d.company_scope ? "company=" + encodeURIComponent(d.company_scope) + "&" : "")}</div></div>`));
+
 	// payment donut + services — full management only
 	if (d.full_mgmt) {
 		parts.push(section("Payments & services", `
@@ -368,6 +371,9 @@ function render_limited($root, d) {
 	}).join("") || '<div class="sga-empty">No job orders assigned to you yet.</div>';
 	parts.push(section("My job status", `<div class="sga-stats">${tiles}</div>`));
 
+	// my job order aging (active jobs by days since job date)
+	parts.push(section("My job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.my_aging, "accountant=" + encodeURIComponent(g.user || "") + "&")}</div></div>`));
+
 	// my work mix + my payment status
 	const paytiles = PAY_META.filter(([k]) => (d.my_payment || {})[k]).map(([k, c]) =>
 		`<a class="sga-stat" href="${joHref({ payment_status: k })}"><span class="dot" style="background:${c}"></span><div class="v">${_int(d.my_payment[k])}</div><div class="n">${_esc(k)}</div></a>`).join("") || '<div class="sga-empty">None</div>';
@@ -440,6 +446,18 @@ function donut(pay) {
 	<div class="sga-donwrap"><div class="sga-donut" style="background:conic-gradient(${stops.join(",")})">
 	  <div class="mid"><b>${paidPct}%</b><span>Paid</span></div></div>
 	  <div class="sga-legend">${legend.join("")}</div></div>`;
+}
+// Job Order aging tiles: clickable buckets (green→red) that drill into the matching
+// active-job list. extraParams scopes it (accountant=… for staff, company=… for mgmt).
+function agingTiles(buckets, extraParams) {
+	const colors = ["var(--sga-good)", "var(--sga-slate2)", "var(--sga-brand-soft)", "var(--sga-amber)", "var(--sga-orange)", "var(--sga-bad)"];
+	const st = encodeURIComponent(JSON.stringify(["not in", ["Finished", "Closed (Failed)"]]));
+	const ds = encodeURIComponent(JSON.stringify(["<", "2"]));
+	return (buckets || []).map((b, i) => {
+		const jd = b.lo ? encodeURIComponent(JSON.stringify(["between", [b.lo, b.hi]])) : encodeURIComponent(JSON.stringify(["<=", b.hi]));
+		const href = `/app/job-order/view/list?${extraParams || ""}job_status=${st}&docstatus=${ds}&job_date=${jd}`;
+		return `<a class="sga-stat" href="${href}"><span class="dot" style="background:${colors[i] || "var(--sga-slate)"}"></span><div class="v">${_int(b.count)}</div><div class="n">${_esc(b.label)}</div></a>`;
+	}).join("") || '<div class="sga-empty">No active job orders</div>';
 }
 // shorten long service names for chart labels: drop the "for the year ended …"
 // tail and cap length; keep the full name as a hover tooltip (r.full).

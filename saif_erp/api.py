@@ -238,13 +238,15 @@ def dashboard_data(period="year", company=None, att_month=None):
 		}
 		recent = frappe.get_all(
 			"Job Order", filters={"accountant": me},
-			fields=["name", "customer", "job_status", "modified"], order_by="modified desc", limit=10,
+			fields=["name", "customer", "company", "job_status", "job_status_remark", "modified"],
+			order_by="modified desc", limit=10,
 		)
 		# jobs needing my attention (actionable to-do)
 		my_action = frappe.get_all(
 			"Job Order",
 			filters={"accountant": me, "job_status": ["in", ["Awaiting Client Data", "Temporarily stopped", "Under Review"]]},
-			fields=["name", "customer", "job_status", "modified"], order_by="modified desc", limit=8,
+			fields=["name", "customer", "company", "job_status", "job_status_remark", "modified"],
+			order_by="modified desc", limit=8,
 		)
 		my_by_service = frappe.db.sql(
 			f"""select coalesce(it.item_name, jo.service, 'Unknown') label, count(*) value

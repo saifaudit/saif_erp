@@ -336,9 +336,21 @@ function render_limited($root, d) {
 	// quick actions for staff (create proposal, apply for leave, jump to my jobs)
 	parts.push(section("Quick actions", `<div class="sga-qa">${quickActions(false)}</div>`, true));
 
+	// richer JO row: name · status on top, then company, then the reason/remark
+	const joDetailRow = (r) => {
+		const company = _esc(r.company || "");
+		const reason = _esc((r.job_status_remark || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean).join(" · "));
+		return `<a class="sga-qrow" style="align-items:flex-start" href="/app/job-order/${encodeURIComponent(r.name)}">
+			<span style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">
+				<span>${_esc(r.name)} · <b>${_esc(r.job_status || "")}</b></span>
+				${company ? `<span style="font-size:.82em;opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🏢 ${company}</span>` : ""}
+				${reason ? `<span style="font-size:.82em;opacity:.72;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">📝 ${reason}</span>` : ""}
+			</span>
+			<span class="t" style="flex-shrink:0">${_esc(_rel(r.modified))}</span>
+		</a>`;
+	};
 	// jobs needing my attention (to-do)
-	const action = (d.my_action || []).map((r) =>
-		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}"><span>${_esc(r.name)} · <b>${_esc(r.job_status || "")}</b></span><span class="t">${_esc(_rel(r.modified))}</span></a>`).join("");
+	const action = (d.my_action || []).map(joDetailRow).join("");
 	if (action) {
 		parts.push(section("Needs my attention", `<div class="sga-card"><div class="sga-qtitle">Awaiting client data · on hold · under review</div><div class="sga-qlist">${action}</div></div>`));
 	}
@@ -366,8 +378,7 @@ function render_limited($root, d) {
 	</div>`));
 
 	// recent jobs + leave
-	const rows = (d.recent_mine || []).map((r) =>
-		`<a class="sga-qrow" href="/app/job-order/${encodeURIComponent(r.name)}"><span>${_esc(r.name)} · ${_esc(r.job_status || "")}</span><span class="t">${_esc(_rel(r.modified))}</span></a>`).join("") || '<div class="sga-empty">None</div>';
+	const rows = (d.recent_mine || []).map(joDetailRow).join("") || '<div class="sga-empty">None</div>';
 	parts.push(section("My recent jobs & leave", `<div class="sga-grid k2">
 	  <div class="sga-card"><div class="sga-qtitle">Recent job orders</div><div class="sga-qlist">${rows}</div></div>
 	  <div class="sga-card">${myleave(d.my_leave)}</div>

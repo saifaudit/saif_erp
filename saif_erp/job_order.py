@@ -23,8 +23,11 @@ def enforce_review(doc, method=None):
 		return
 	user = frappe.session.user
 	if user != "Administrator" and user not in reviewers():
-		frappe.throw(_("Only the reviewer (Chandy or Santhosh) can set the employee review rating."))
-	if doc.get("custom_reviewer_rating"):
+		frappe.throw(_("Only the reviewer (Chandy or Santhosh) can set the employee review mark."))
+	mark = frappe.utils.cint(doc.get("custom_reviewer_rating"))
+	if mark:
+		if mark < 0 or mark > 10:
+			frappe.throw(_("Reviewer Mark must be between 0 and 10."))
 		doc.custom_reviewed_by = user
 		doc.custom_review_date = frappe.utils.nowdate()
 

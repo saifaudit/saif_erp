@@ -120,8 +120,8 @@ def render_html(employee=None, from_date=None, to_date=None):
 				cls = "cf" if v == "Yes" else ""
 				tds.append("<td class='%s'>%s</td>" % (cls, _esc(v)))
 			elif f == "reviewer_rating":
-				stars = R.star_html(round(flt(v) * 5), 11) if v else "<span style='color:#bbb'>—</span>"
-				tds.append("<td style='white-space:nowrap'>%s</td>" % stars)
+				cell = ("<b>%d</b><span style='color:#999;font-size:8px'>/10</span>" % int(v)) if v else "<span style='color:#bbb'>—</span>"
+				tds.append("<td class='num'>%s</td>" % cell)
 			else:
 				tds.append("<td>%s</td>" % _esc(v))
 		body_rows.append("<tr>%s</tr>" % "".join(tds))

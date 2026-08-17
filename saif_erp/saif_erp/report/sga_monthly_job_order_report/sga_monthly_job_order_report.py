@@ -114,11 +114,12 @@ def compute_team_ratings(frm, to):
 			parts["speed"] = best_turn / m["avg_turn"]  # 1.0 = fastest in team
 		total_w = sum(RATING_W[k] for k in parts)
 		auto = sum(v * RATING_W[k] for k, v in parts.items()) / total_w  # 0–1 auto score
-		# Blend in the reviewer rating where reviews exist; no reviews → auto only
-		# (never penalise an employee for a job/month that wasn't reviewed).
+		# Blend in the reviewer marks where they exist; no marks → auto only (never
+		# penalise an employee for a job/month that wasn't reviewed). Marks are out
+		# of 10, so normalise to 0–1 in the blend; review_avg is kept as the mark.
 		m["review_avg"] = (sum(m["reviews"]) / len(m["reviews"])) if m["reviews"] else None
 		m["review_n"] = len(m["reviews"])
-		final = (auto * (1 - MANUAL_W) + m["review_avg"] * MANUAL_W) if m["reviews"] else auto
+		final = (auto * (1 - MANUAL_W) + (m["review_avg"] / 10.0) * MANUAL_W) if m["reviews"] else auto
 		m["score"] = round(final * 100)
 
 	# rank + stars are relative to the ACTIVE team only
@@ -158,9 +159,10 @@ def rating_badge_html(m, show_rank=True):
 		        "Rank #%d</span>" % (C_GREEN, m["rank"]))
 	review = ""
 	if m.get("review_n"):
-		review = ("<span style='margin-left:12px;color:%s;font-weight:600;font-size:11px'>Reviewed</span> "
-		          "%s <span style='color:%s;font-size:11px'>(%d)</span>"
-		          % (C_MUTED, star_html(round(m["review_avg"] * 5), 12), C_MUTED, m["review_n"]))
+		review = ("<span style='margin-left:12px;color:%s;font-weight:600;font-size:11px'>Reviewer mark</span> "
+		          "<b style='color:%s;font-size:14px'>%.1f</b><span style='color:%s;font-size:10px'>/10</span> "
+		          "<span style='color:%s;font-size:11px'>(%d)</span>"
+		          % (C_MUTED, C_GREEN, m["review_avg"], C_MUTED, C_MUTED, m["review_n"]))
 	return (
 		"<div style='display:inline-flex;align-items:center;gap:10px;padding:6px 14px;"
 		"background:%s;border:1px solid %s;border-radius:20px'>"
@@ -191,8 +193,9 @@ def leaderboard_html(ratings):
 		name, company = emap.get(_u, (_u, ""))
 		turn = m["avg_turn"] if m["avg_turn"] is not None else "—"
 		bg = C_TINT if m["rank"] % 2 == 0 else "#fff"
-		review = ("%s <span style='color:%s'>(%d)</span>"
-		          % (star_html(round(m["review_avg"] * 5), 11), C_MUTED, m["review_n"])) if m.get("review_n") else \
+		review = ("<b style='color:%s'>%.1f</b><span style='color:%s;font-size:9px'>/10</span> "
+		          "<span style='color:%s'>(%d)</span>"
+		          % (C_GREEN, m["review_avg"], C_MUTED, C_MUTED, m["review_n"])) if m.get("review_n") else \
 		         ("<span style='color:%s'>—</span>" % C_MUTED)
 		cells = [
 			("r", m["rank"]), ("l", frappe.utils.escape_html(name)),
@@ -226,7 +229,7 @@ def get_columns():
 		{"label": _("Customer"), "fieldname": "customer", "fieldtype": "Link", "options": "Customer", "width": 175},
 		{"label": _("Service"), "fieldname": "service", "fieldtype": "Data", "width": 150},
 		{"label": _("Status"), "fieldname": "job_status", "fieldtype": "Data", "width": 130},
-		{"label": _("Review"), "fieldname": "reviewer_rating", "fieldtype": "Rating", "width": 110},
+		{"label": _("Review /10"), "fieldname": "reviewer_rating", "fieldtype": "Int", "width": 80},
 		{"label": _("Job Date"), "fieldname": "job_date", "fieldtype": "Date", "width": 90},
 		{"label": _("Aging"), "fieldname": "aging", "fieldtype": "Data", "width": 75},
 		{"label": _("Carry Fwd"), "fieldname": "carry_forward", "fieldtype": "Data", "width": 80},

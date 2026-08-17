@@ -431,6 +431,8 @@ def dashboard_data(period="year", company=None, att_month=None):
 	proposals = {
 		"total": frappe.db.count("Quotation", cfilt({})),
 		"converted": frappe.db.count("Quotation", cfilt({"custom_job_order_created": 1})),
+		# proposals still awaiting the client's yes/no (excludes the few that are
+		# already accepted-by-email/signed but sitting in Draft — those aren't "waiting").
 		"awaiting_acceptance": frappe.db.count("Quotation", cfilt({"custom_client_acceptance_type": "Not Confirmed"})),
 		# accepted by the client but not yet turned into a Job Order — only live,
 		# submitted proposals count (exclude Cancelled + Draft), matching the card.

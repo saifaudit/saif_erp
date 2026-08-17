@@ -32,6 +32,12 @@ def execute():
 	if frappe.db.exists("Page", "sga-dashboard"):
 		frappe.db.set_default("desktop:home_page", "sga-dashboard")
 
+	# 1b) clear the per-user `default_workspace` (ERPNext ships it as "Home").
+	# It overrides the global desktop:home_page default, so users would land on
+	# the Home workspace instead of the SGA Dashboard. Blank it so the global
+	# default wins. Only touch the stock "Home" value; leave deliberate choices.
+	frappe.db.sql("update `tabUser` set default_workspace='' where default_workspace='Home'")
+
 	# 2) hide irrelevant workspaces from staff (only where not already restricted)
 	for name in HIDE:
 		if not frappe.db.exists("Workspace", name):

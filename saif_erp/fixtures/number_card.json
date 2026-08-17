@@ -149,7 +149,7 @@
   "document_type": "Job Order",
   "dynamic_filters_json": "[]",
   "filters_config": null,
-  "filters_json": "[[\"Job Order\", \"workflow_state\", \"=\", \"Pending Approval\", false]]",
+  "filters_json": "[[\"Job Order\", \"approval_status\", \"=\", \"Pending\", false]]",
   "function": "Count",
   "is_public": 1,
   "is_standard": 0,
@@ -308,7 +308,7 @@
   "type": "Document Type"
  },
  {
-  "aggregate_function_based_on": "total_leave_days",
+  "aggregate_function_based_on": null,
   "background_color": "#c1cbf7",
   "color": "#030303",
   "currency": null,
@@ -318,7 +318,7 @@
   "dynamic_filters_json": "[]",
   "filters_config": null,
   "filters_json": "[[\"Leave Application\", \"status\", \"=\", \"Open\", false], [\"Leave Application\", \"from_date\", \"Timespan\", \"this year\"]]",
-  "function": "Sum",
+  "function": "Count",
   "is_public": 1,
   "is_standard": 0,
   "label": "Leave Application Waiting Approval",

@@ -264,6 +264,15 @@ doc_events = {
 	},
 }
 
+# Row-level security: a plain Job Order Accountant only sees the Credential Manager
+# records assigned to them; management roles see all. (See credential_manager.py.)
+permission_query_conditions = {
+	"Credential Manager": "saif_erp.credential_manager.get_permission_query_conditions",
+}
+has_permission = {
+	"Credential Manager": "saif_erp.credential_manager.has_permission",
+}
+
 # Migratable customizations (exported via `bench export-fixtures`)
 fixtures = [
 	{"doctype": "Workflow", "filters": [["name", "=", "Job Order Approval"]]},

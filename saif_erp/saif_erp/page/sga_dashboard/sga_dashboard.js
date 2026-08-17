@@ -578,7 +578,9 @@ function attCard(att, checkins) {
 	};
 	const tiles = attDefs.filter(([, , v, a]) => a || v).map(([k, c, v, , status]) => {
 		const inner = `<span class="dot" style="background:${c}"></span><div class="v">${_int(v || 0)}</div><div class="n">${_esc(k)}</div>`;
-		const href = status ? attLink(status) : (k === "Holidays" && att.holiday_list ? "/app/holiday-list/" + encodeURIComponent(att.holiday_list) : null);
+		// Holidays isn't an Attendance status; point at the Holiday List. Use a query
+		// filter (not a path) because the list name can contain "/" which breaks routing.
+		const href = status ? attLink(status) : (k === "Holidays" && att.holiday_list ? "/app/holiday-list?name=" + encodeURIComponent(att.holiday_list) : null);
 		return href ? `<a class="sga-stat" href="${href}">${inner}</a>` : `<div class="sga-stat">${inner}</div>`;
 	}).join("") || '<div class="sga-empty">No attendance this month</div>';
 	const note = `<div class="sga-attnote">${_int(att.working_days)} working days so far · <b>Sundays &amp; public holidays excluded</b>${att.holiday_list ? " (" + _esc(att.holiday_list) + ")" : ""}</div>`;

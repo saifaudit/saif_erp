@@ -318,7 +318,18 @@ function render_limited($root, d) {
 	  ${kpi("Needs attention", _int(mc.attention), `<span class="sga-chip warn">Awaiting data / on hold</span>`, "var(--sga-amber)", null, joHref({ job_status: "Awaiting Client Data" }))}
 	</div>`));
 
-	// quick actions for staff (apply for leave, jump to my jobs)
+	// My proposal pipeline — the accountant's entry point (they create proposals)
+	const mp = d.my_proposals || {};
+	const mineQ = "/app/quotation?owner=" + encodeURIComponent(g.user || "");
+	const convPct = mp.total ? Math.round((mp.converted / mp.total) * 100) : 0;
+	parts.push(section("My proposals → job orders", `
+	<div class="sga-funnel">
+	  ${fstep(mp.total, "My proposals", mineQ)}
+	  ${fstep(mp.converted, `<span class="arw">→</span> Converted · <b>${convPct}%</b>`, mineQ + '&custom_job_order=' + encodeURIComponent(JSON.stringify(["is", "set"])))}
+	  ${fstep(mp.awaiting, "Awaiting client acceptance", mineQ + "&custom_client_acceptance_type=Not%20Confirmed")}
+	</div>`));
+
+	// quick actions for staff (create proposal, apply for leave, jump to my jobs)
 	parts.push(section("Quick actions", `<div class="sga-qa">${quickActions(false)}</div>`, true));
 
 	// jobs needing my attention (to-do)

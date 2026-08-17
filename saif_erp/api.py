@@ -252,6 +252,12 @@ def dashboard_data(period="year", company=None, att_month=None):
 			group by label order by label""",
 			{"me": me}, as_dict=True,
 		)
+		# my proposal pipeline (accountants create proposals; this is their entry point)
+		my_proposals = {
+			"total": frappe.db.count("Quotation", {"owner": me}),
+			"converted": frappe.db.count("Quotation", {"owner": me, "custom_job_order": ["is", "set"]}),
+			"awaiting": frappe.db.count("Quotation", {"owner": me, "custom_client_acceptance_type": "Not Confirmed"}),
+		}
 		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
 		_p = _personal(emp)
 		my_leave, my_attendance, my_checkins = _p["my_leave"], _p["my_attendance"], _p["my_checkins"]
@@ -259,7 +265,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 			"greeting": greeting, "manager": False, "my_status": my_status, "my_counts": my_counts,
 			"recent_mine": recent, "my_leave": my_leave, "my_action": my_action,
 			"my_by_service": my_by_service, "my_payment": my_payment, "my_trend": my_trend,
-			"my_attendance": my_attendance, "my_checkins": my_checkins,
+			"my_attendance": my_attendance, "my_checkins": my_checkins, "my_proposals": my_proposals,
 		}
 
 	# Optional company filter (group has multiple entities). Escaped + inlined so

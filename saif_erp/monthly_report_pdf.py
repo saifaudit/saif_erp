@@ -48,7 +48,8 @@ def _logo_data_uri():
 			_LOGO = ""
 	return _LOGO
 
-# columns shown on the printed sheet (trimmed from the 14 on-screen columns)
+# columns shown on the printed sheet (trimmed from the on-screen columns; Remarks
+# kept so the accountant's status reason — e.g. client delay — is readable)
 PRINT_COLS = [
 	("job_order", "Job Order"),
 	("customer", "Customer"),
@@ -57,10 +58,9 @@ PRINT_COLS = [
 	("job_date", "Job Date"),
 	("aging", "Aging"),
 	("carry_forward", "C/F"),
-	("other_accountants", "Collaborators"),
-	("proposed_amount", "Proposed"),
 	("invoiced_amount", "Invoiced"),
 	("paid_amount", "Paid"),
+	("remarks", "Remarks"),
 ]
 MONEY = {"proposed_amount", "invoiced_amount", "paid_amount"}
 

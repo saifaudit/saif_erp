@@ -215,7 +215,7 @@ def leaderboard_html(ratings):
 	return (
 		"<div style='font-size:13px;font-weight:800;color:%s;margin:2px 0 6px'>Employee Rating "
 		"<span style='font-size:9.5px;font-weight:500;color:%s'>· Finished 32%% · Volume 30%% · "
-		"Invoiced 10%% · Collected 10%% · Time 8%% · Reviewer 10%% (active team; blanks redistributed)</span></div>"
+		"Invoiced 10%% · Collected 10%% · Time 8%% · Report quality 10%% (active team; blanks redistributed)</span></div>"
 		"<table style='width:100%%;border-collapse:collapse;font-size:11px'>"
 		"<thead><tr style='background:%s;color:#fff'>%s</tr></thead><tbody>%s</tbody></table>"
 		% (C_GREEN, C_MUTED, C_GREEN, th, "".join(trs))

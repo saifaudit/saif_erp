@@ -432,8 +432,9 @@ def dashboard_data(period="year", company=None, att_month=None):
 		"total": frappe.db.count("Quotation", cfilt({})),
 		"converted": frappe.db.count("Quotation", cfilt({"custom_job_order_created": 1})),
 		"awaiting_acceptance": frappe.db.count("Quotation", cfilt({"custom_client_acceptance_type": "Not Confirmed"})),
-		# accepted by the client but not yet turned into a Job Order
-		"awaiting_jo": frappe.db.count("Quotation", cfilt({"custom_client_acceptance_confirmed": 1, "custom_job_order_created": 0})),
+		# accepted by the client but not yet turned into a Job Order — only live,
+		# submitted proposals count (exclude Cancelled + Draft), matching the card.
+		"awaiting_jo": frappe.db.count("Quotation", cfilt({"custom_client_acceptance_confirmed": 1, "custom_job_order_created": 0, "docstatus": 1})),
 	}
 
 	def recent(status):
@@ -452,9 +453,11 @@ def dashboard_data(period="year", company=None, att_month=None):
 	active = sum(job_status.get(s, 0) for s in
 	             ["Open", "Progress", "Under Review", "Awaiting Client Data", "Temporarily stopped", "Pending"])
 
-	# frequently-used approval queues (mirrors the old Admin Dash tabs)
+	# frequently-used approval queues (mirrors the old Admin Dash tabs).
+	# approval_status='Pending' reliably tracks JOs awaiting approval (Draft +
+	# Pending Approval); workflow_state='Pending Approval' misses backfilled ones.
 	approvals = {
-		"jo_pending": frappe.db.count("Job Order", {"workflow_state": "Pending Approval"}),
+		"jo_pending": frappe.db.count("Job Order", {"approval_status": "Pending"}),
 		"leave_pending": frappe.db.count("Leave Application", {"status": "Open"}),
 	}
 

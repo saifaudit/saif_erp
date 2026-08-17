@@ -159,7 +159,7 @@ function render($root, d, actions) {
 	const ap = d.approvals || {};
 	const apSec = section("Approvals waiting", `
 	<div class="sga-grid k2">
-	  ${kpi("Job Orders to approve", _int(ap.jo_pending), "Pending Approval · click to review", "var(--sga-orange)", null, joHref({ workflow_state: "Pending Approval" }))}
+	  ${kpi("Job Orders to approve", _int(ap.jo_pending), "Pending approval · click to review", "var(--sga-orange)", null, joHref({ approval_status: "Pending" }))}
 	  ${kpi("Leave to approve", _int(ap.leave_pending), "Open leave applications · click to review", "var(--sga-orange)", null, listHref("leave-application", { status: "Open" }))}
 	</div>`);
 	const qaSec = section("Quick actions", `<div class="sga-qa">${quickActions(true)}</div>`, true);
@@ -170,7 +170,7 @@ function render($root, d, actions) {
 	  ${fstep(p.total, "Total proposals", listHref("quotation", {}))}
 	  ${fstep(p.converted, `<span class="arw">→</span> Converted · <b>${conv}%</b>`, listHref("quotation", { custom_job_order_created: 1 }))}
 	  ${fstep(p.awaiting_acceptance, "Awaiting client acceptance", listHref("quotation", { custom_client_acceptance_type: "Not Confirmed" }))}
-	  ${fstep(p.awaiting_jo, "Accepted · awaiting JO", listHref("quotation", { custom_client_acceptance_confirmed: 1, custom_job_order_created: 0 }))}
+	  ${fstep(p.awaiting_jo, "Accepted · awaiting JO", listHref("quotation", { custom_client_acceptance_confirmed: 1, custom_job_order_created: 0, docstatus: 1 }))}
 	</div>`);
 	if (d.full_mgmt) parts.push(apSec, qaSec, funnelSec);
 	else parts.push(qaSec, apSec, funnelSec); // Admin Support: create actions first

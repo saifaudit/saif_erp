@@ -5,25 +5,25 @@
 import frappe
 from frappe import _
 
-# Only these users may set the employee review rating on a Job Order.
-# Override with site_config `saif_reviewers`.
 REVIEW_FIELDS = ("custom_reviewer_rating", "custom_review_remark")
+# users granted the Reviewer role on install (override via site_config saif_reviewers)
+DEFAULT_REVIEWERS = ["chandy@saifaudit.com", "santhosh@saifaudit.com"]
 
 
 def reviewers():
-	return frappe.conf.get("saif_reviewers") or ["chandy@saifaudit.com", "santhosh@saifaudit.com"]
+	return frappe.conf.get("saif_reviewers") or DEFAULT_REVIEWERS
 
 
 def enforce_review(doc, method=None):
-	"""Guard the Job Order employee-review fields: only a reviewer (Chandy /
-	Santhosh, or Administrator) may set them; stamp who/when automatically."""
+	"""Guard the Job Order employee-review fields: only a user with the 'Reviewer'
+	role (or Administrator) may set them; stamp who/when and validate 0–10."""
 	prev = doc.get_doc_before_save()
 	touched = any((not prev) or (prev.get(f) != doc.get(f)) for f in REVIEW_FIELDS)
 	if not touched:
 		return
 	user = frappe.session.user
-	if user != "Administrator" and user not in reviewers():
-		frappe.throw(_("Only the reviewer (Chandy or Santhosh) can set the employee review mark."))
+	if user != "Administrator" and "Reviewer" not in frappe.get_roles(user):
+		frappe.throw(_("Only a Reviewer can set the employee review mark."))
 	mark = frappe.utils.cint(doc.get("custom_reviewer_rating"))
 	if mark:
 		if mark < 0 or mark > 10:

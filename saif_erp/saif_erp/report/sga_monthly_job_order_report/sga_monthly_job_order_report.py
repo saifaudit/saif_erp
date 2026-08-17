@@ -39,10 +39,11 @@ def execute(filters=None):
 # finished jobs, so missing time data never drags a rating down.
 # NOTE: a manual reviewer rating is planned to be blended in later — see
 # saif-erp-reports-rating memory.
-RATING_W = {"invoiced": 0.40, "volume": 0.25, "finished": 0.25, "speed": 0.10}
-# Weight of the reviewer's manual rating when it exists (blended with the auto
-# score above). No reviews → auto score only (missing reviews never penalise).
-MANUAL_W = 0.30
+# One unified weighted rating (management-set). Each component is scored 0–1 and
+# the weights of any missing components (no turnaround data, no reviewer mark) are
+# redistributed across the rest — so a blank never penalises. Review = mark/10.
+RATING_W = {"finished": 0.32, "volume": 0.30, "invoiced": 0.10, "collected": 0.10,
+            "speed": 0.08, "review": 0.10}
 
 
 def compute_team_ratings(frm, to):
@@ -56,32 +57,38 @@ def compute_team_ratings(frm, to):
 	          " or (jo.job_date < %(from)s and jo.closure_date between %(from)s and %(to)s))")
 	sql = f"""
 		select 'o' role, jo.name, jo.accountant emp, jo.job_status, jo.job_date,
-			jo.closure_date, jo.invoiced_amount, jo.custom_reviewer_rating rrating
+			jo.closure_date, jo.invoiced_amount, jo.paid_amount, jo.custom_reviewer_rating rrating
 		from `tabJob Order` jo where jo.docstatus=1 and {period} and jo.accountant is not null
 		union all
 		select 'c', jo.name, joc.to_accountant, jo.job_status, jo.job_date,
-			jo.closure_date, jo.invoiced_amount, jo.custom_reviewer_rating
+			jo.closure_date, jo.invoiced_amount, jo.paid_amount, jo.custom_reviewer_rating
 		from `tabJob Order Contributors` joc join `tabJob Order` jo on jo.name = joc.parent
 		where jo.docstatus=1 and {period} and joc.to_accountant is not null
 	"""
 	rows = frappe.db.sql(sql, params, as_dict=True)
-	finish = _finish_dates(list({r.name for r in rows}))
+	names = list({r.name for r in rows})
+	finish = _finish_dates(names)
+	stopped = _stopped_days(names)  # days each job spent Temporarily stopped
 
 	agg = {}
 	for r in rows:
-		m = agg.setdefault(r.emp, {"volume": 0, "invoiced": 0.0, "finished": 0, "turns": [], "reviews": []})
+		m = agg.setdefault(r.emp, {"volume": 0, "invoiced": 0.0, "collected": 0.0,
+		                           "finished": 0, "turns": [], "reviews": []})
 		m["volume"] += 1
 		if r.role != "o":
 			continue  # money, completion & review credit only to the owning accountant
-		if r.rrating:  # reviewer star rating on this owned job (stored 0–1)
+		if r.rrating:  # reviewer mark on this owned job (0–10)
 			m["reviews"].append(flt(r.rrating))
-		if r.job_date and getdate(r.job_date) >= frm and getdate(r.job_date) <= to:
-			m["invoiced"] += flt(r.invoiced_amount)  # new-this-period billing
+		if r.job_date and frm <= getdate(r.job_date) <= to:
+			m["invoiced"] += flt(r.invoiced_amount)   # billed this period
+			m["collected"] += flt(r.paid_amount)      # received this period
 		fin = r.closure_date or finish.get(r.name)
 		fin = getdate(fin) if fin else None
 		if r.job_status in DONE and fin and frm <= fin <= to and r.job_date:
 			m["finished"] += 1
-			m["turns"].append(date_diff(fin, getdate(r.job_date)))
+			# active turnaround = elapsed minus time the job was Temporarily stopped
+			active_days = max(0, date_diff(fin, getdate(r.job_date)) - stopped.get(r.name, 0))
+			m["turns"].append(active_days)
 
 	if not agg:
 		return {}
@@ -100,27 +107,30 @@ def compute_team_ratings(frm, to):
 	for m in agg.values():
 		m["avg_turn"] = round(sum(m["turns"]) / len(m["turns"])) if m["turns"] else None
 	bench = [m for u, m in agg.items() if u in active] or list(agg.values())
-	mx = {k: max((m[k] for m in bench), default=0) or 1 for k in ("volume", "invoiced", "finished")}
+	mx = {k: max((m[k] for m in bench), default=0) or 1
+	      for k in ("volume", "invoiced", "collected", "finished")}
 	best_turn = min((m["avg_turn"] for m in bench if m["avg_turn"]), default=None)
 
+	# Unified weighted score: each present component scored 0–1 relative to the
+	# team (review is mark/10, absolute); the weights of any absent component
+	# (no turnaround, no reviewer mark) are redistributed, so a blank never hurts.
 	for u, m in agg.items():
 		m["active"] = u in active
 		parts = {
 			"volume": m["volume"] / mx["volume"],
 			"invoiced": m["invoiced"] / mx["invoiced"],
+			"collected": m["collected"] / mx["collected"],
 			"finished": m["finished"] / mx["finished"],
 		}
 		if m["avg_turn"] and best_turn:
 			parts["speed"] = best_turn / m["avg_turn"]  # 1.0 = fastest in team
-		total_w = sum(RATING_W[k] for k in parts)
-		auto = sum(v * RATING_W[k] for k, v in parts.items()) / total_w  # 0–1 auto score
-		# Blend in the reviewer marks where they exist; no marks → auto only (never
-		# penalise an employee for a job/month that wasn't reviewed). Marks are out
-		# of 10, so normalise to 0–1 in the blend; review_avg is kept as the mark.
 		m["review_avg"] = (sum(m["reviews"]) / len(m["reviews"])) if m["reviews"] else None
 		m["review_n"] = len(m["reviews"])
-		final = (auto * (1 - MANUAL_W) + (m["review_avg"] / 10.0) * MANUAL_W) if m["reviews"] else auto
-		m["score"] = round(final * 100)
+		if m["reviews"]:
+			parts["review"] = m["review_avg"] / 10.0
+		total_w = sum(RATING_W[k] for k in parts)
+		score = sum(v * RATING_W[k] for k, v in parts.items()) / total_w
+		m["score"] = round(score * 100)
 
 	# rank + stars are relative to the ACTIVE team only
 	ranked = sorted((kv for kv in agg.items() if kv[1]["active"]), key=lambda kv: -kv[1]["score"])
@@ -204,8 +214,8 @@ def leaderboard_html(ratings):
 		trs.append("<tr style='background:%s'>%s</tr>" % (bg, "".join(tds)))
 	return (
 		"<div style='font-size:13px;font-weight:800;color:%s;margin:2px 0 6px'>Employee Rating "
-		"<span style='font-size:9.5px;font-weight:500;color:%s'>· Invoiced 40%% · Volume 25%% · "
-		"Finished 25%% · Speed 10%% (relative to active team) + Reviewer 30%% where reviewed</span></div>"
+		"<span style='font-size:9.5px;font-weight:500;color:%s'>· Finished 32%% · Volume 30%% · "
+		"Invoiced 10%% · Collected 10%% · Time 8%% · Reviewer 10%% (active team; blanks redistributed)</span></div>"
 		"<table style='width:100%%;border-collapse:collapse;font-size:11px'>"
 		"<thead><tr style='background:%s;color:#fff'>%s</tr></thead><tbody>%s</tbody></table>"
 		% (C_GREEN, C_MUTED, C_GREEN, th, "".join(trs))
@@ -255,6 +265,37 @@ def _finish_dates(names):
 		for ch in d.get("changed", []):
 			if ch and ch[0] == "job_status" and ch[2] in DONE:
 				out[r.docname] = getdate(r.creation)  # asc order → last DONE wins
+	return out
+
+
+def _stopped_days(names):
+	"""Days each job spent in 'Temporarily stopped' (from the change-log), so that
+	client-caused pauses can be removed from the accountant's turnaround. Reads the
+	job_status transitions: time from entering 'Temporarily stopped' until it moves
+	to any other status. Jobs with no change-log return 0 (nothing to exclude)."""
+	if not names:
+		return {}
+	rows = frappe.db.sql(
+		"""select docname, creation, data from `tabVersion`
+		   where ref_doctype='Job Order' and docname in %(n)s
+		     and data like '%%job_status%%' order by creation asc""",
+		{"n": tuple(names)},
+		as_dict=True,
+	)
+	out, since = {}, {}
+	for r in rows:
+		try:
+			d = json.loads(r.data)
+		except Exception:
+			continue
+		for ch in d.get("changed", []):
+			if not ch or ch[0] != "job_status":
+				continue
+			when = getdate(r.creation)
+			if ch[2] == "Temporarily stopped":
+				since[r.docname] = when
+			elif ch[1] == "Temporarily stopped" and r.docname in since:
+				out[r.docname] = out.get(r.docname, 0) + date_diff(when, since.pop(r.docname))
 	return out
 
 

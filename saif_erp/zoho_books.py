@@ -215,9 +215,12 @@ def _invoice_values(inv):
 # ---- the sync ---------------------------------------------------------------
 def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 	"""Pull Zoho invoices, match to Job Orders by JO number, and update the
-	invoice header. Returns a summary + per-row change list. `dry_run=True`
-	(default) computes changes but writes NOTHING. `invoices` may be injected
-	(list of dicts) to test matching/mapping without a live connection."""
+	invoice header. A recurring client reuses ONE Job Order across many billing
+	cycles, so when a JO has several invoices only the LATEST (most recent date)
+	is mirrored onto it — the current cycle. Returns a summary + per-row change
+	list. `dry_run=True` (default) computes changes but writes NOTHING. `invoices`
+	may be injected (list of dicts) to test matching/mapping without a live
+	connection."""
 	c = frappe.conf.get("zoho_books") or {}
 	jo_field = c.get("jo_field", "reference_number")
 	jo_pattern = c.get("jo_pattern")
@@ -231,10 +234,11 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 			per_source[src["label"]] = len(got)
 			invoices += got
 
-	changes, unmatched, skipped, skipped_status = [], [], 0, 0
+	# Bucket matched invoices by Job Order. Recurring clients reuse ONE Job Order
+	# across many billing cycles, so a JO can have several invoices.
+	by_jo, unmatched, skipped, skipped_status = {}, [], 0, 0
 	for inv in invoices:
-		status = (inv.get("status") or "").lower()
-		if status in SKIP_STATUSES:
+		if (inv.get("status") or "").lower() in SKIP_STATUSES:
 			skipped_status += 1   # void / written-off never overwrite ERP figures
 			continue
 		jo = extract_jo(inv, jo_field, jo_pattern)
@@ -242,18 +246,21 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 			unmatched.append({"invoice": inv.get("invoice_number"),
 			                  "zoho_ref": inv.get("reference_number"), "jo": jo})
 			continue
+		by_jo.setdefault(jo, []).append(inv)
+
+	changes, multi_collapsed, superseded = [], 0, 0
+	for jo, invs in by_jo.items():
+		if len(invs) > 1:
+			multi_collapsed += 1
+			superseded += len(invs) - 1
+		# Rule: the Job Order reflects the LATEST billing cycle only — pick the most
+		# recent invoice by date (tie-break on invoice number, then created time).
+		inv = max(invs, key=lambda i: (i.get("date") or "", str(i.get("invoice_number") or ""),
+		                               i.get("created_time") or ""))
 		cur = frappe.db.get_value("Job Order", jo, SYNCED_FIELDS, as_dict=True)
 		new = _invoice_values(inv)
 		if new["payment_status"] is None:
 			new["payment_status"] = cur.payment_status  # unknown status -> leave as-is
-		# Draft-lag: a draft is an issued invoice but Zoho cannot record a payment
-		# against it, so a draft may refresh the invoice header facts but must never
-		# undo a payment already recorded in ERP.
-		if status == "draft" and (flt(cur.paid_amount) > 0
-		                          or cur.payment_status in ("Partial Payment", "Paid")):
-			new["paid_amount"] = cur.paid_amount
-			new["balance_amount"] = cur.balance_amount
-			new["payment_status"] = cur.payment_status
 		if preserve_hold and cur.payment_status == "Hold / Dispute":
 			new["payment_status"] = "Hold / Dispute"    # never auto-clear a manual hold
 		diff = {f: new[f] for f in SYNCED_FIELDS
@@ -262,7 +269,7 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 			skipped += 1
 			continue
 		changes.append({"job_order": jo, "invoice": inv.get("invoice_number"),
-		                "diff": diff})
+		                "cycles": len(invs), "diff": diff})
 		if not dry_run:
 			for f, v in diff.items():
 				frappe.db.set_value("Job Order", jo, f, v, update_modified=False)
@@ -271,9 +278,11 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 		frappe.db.commit()
 
 	summary = {"mode": "DRY-RUN" if dry_run else "APPLIED",
-	           "pulled": len(invoices), "changed": len(changes),
-	           "unchanged": skipped, "unmatched": len(unmatched),
-	           "skipped_status": skipped_status, "per_source": per_source}
+	           "pulled": len(invoices), "matched_jobs": len(by_jo),
+	           "changed": len(changes), "unchanged": skipped,
+	           "unmatched": len(unmatched), "skipped_status": skipped_status,
+	           "recurring_jobs": multi_collapsed, "older_cycles_ignored": superseded,
+	           "per_source": per_source}
 	return {"summary": summary, "changes": changes, "unmatched": unmatched}
 
 

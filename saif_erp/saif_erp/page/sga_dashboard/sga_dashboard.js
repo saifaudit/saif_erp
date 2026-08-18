@@ -196,12 +196,20 @@ function render($root, d, actions) {
 		const zohoBtn = d.zoho_enabled
 			? `<button class="sga-zoho-sync" title="Pull the latest invoices from Zoho Books and update the matching Job Orders">↻ Sync from Zoho</button>`
 			: "";
+		const b = money.billing || {};
 		parts.push(`<div class="sga-sec"><div class="sga-eye"><h2>Financial snapshot · ${_esc(money.period_label || "This year")}</h2><span class="rule"></span>${toggle}${zohoBtn}</div>
-		<div class="sga-grid k4">
-		  ${kpi("Invoiced", _m(money.invoiced), `${money.period_label} · submitted job orders`, "var(--sga-brand)", null, joHref({}))}
+		<div class="sga-grid k3">
+		  ${kpi("Invoiced", _m(money.invoiced), `${money.period_label} · total billed`, "var(--sga-brand)", null, joHref({}))}
 		  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate, joHref({ payment_status: "Paid" }))}
 		  ${kpi("Outstanding", _m(money.outstanding), `<span class="sga-chip warn">Invoiced minus collected</span>`, "var(--sga-orange)", null, joHref({ payment_status: "Not Paid" }))}
-		  ${kpi("Open pipeline", _int(d.active_jobs), `<b>${_int(d.job_status.Finished || 0)}</b> finished all‑time`, "var(--sga-accent)", null, joHref({ job_status: "Progress" }))}
+		</div>
+		<div class="sga-sub">Billing status · job orders (from Zoho Books)</div>
+		<div class="sga-grid k4">
+		  ${kpi("Waiting to invoice", _int(b.waiting_n), `${_money(b.waiting_amt)} expected · not yet billed`, "var(--sga-slate)", null, joHref({ invoiced_amount: 0 }))}
+		  ${kpi("Paid", _int(b.paid_n), `${_money(b.paid_amt)} collected`, "var(--sga-good)", null, joHref({ payment_status: "Paid" }))}
+		  ${kpi("Unpaid", _int(b.unpaid_n), `${_money(b.unpaid_amt)} outstanding`, "var(--sga-orange)", null, joHref({ payment_status: "Not Paid" }))}
+		  ${kpi("Partial", _int(b.partial_n), `${_money(b.partial_amt)} remaining`, "var(--sga-amber)", null, joHref({ payment_status: "Partial Payment" }))}
+		  ${Number(b.hold_n) ? kpi("Hold / Dispute", _int(b.hold_n), `${_money(b.hold_amt)} on hold`, "var(--sga-bad)", null, joHref({ payment_status: "Hold / Dispute" })) : ""}
 		</div></div>`);
 	}
 
@@ -886,6 +894,7 @@ a.fstep:hover{transform:translateY(-2px)}
 .sga-zoho-sync{margin-left:10px;border:1px solid var(--sga-brand);background:var(--sga-brand);color:#fff;font-size:12px;font-weight:650;padding:5px 12px;border-radius:8px;cursor:pointer;flex:0 0 auto}
 .sga-zoho-sync:hover{filter:brightness(1.08)}
 .sga-zoho-sync:disabled{opacity:.6;cursor:default}
+.sga-sub{font-size:11.5px;font-weight:650;color:var(--sga-muted);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 9px}
 .sga-warn{margin-top:12px;font-size:12px;color:var(--sga-bad);background:color-mix(in srgb,var(--sga-bad) 10%,transparent);
  border:1px solid color-mix(in srgb,var(--sga-bad) 26%,transparent);border-radius:8px;padding:8px 10px}
 .sga-dash .lnk{cursor:pointer}

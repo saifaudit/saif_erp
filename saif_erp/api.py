@@ -373,6 +373,23 @@ def dashboard_data(period="year", company=None, att_month=None):
 		"collection_rate": round(paid / inv * 100) if inv else 0,
 		"period": period, "period_label": "This year" if period == "year" else "All time",
 	}
+	# Billing status breakdown (counts + amounts), same scope as `money`. Drives the
+	# Financial snapshot's status cards: waiting-to-invoice / paid / unpaid / partial.
+	bill = frappe.db.sql(f"""
+		select
+		  sum(case when coalesce(invoiced_amount,0)=0 then 1 else 0 end) waiting_n,
+		  sum(case when coalesce(invoiced_amount,0)=0 then coalesce(proposed_amount,0) else 0 end) waiting_amt,
+		  sum(case when payment_status='Paid' then 1 else 0 end) paid_n,
+		  sum(case when payment_status='Paid' then coalesce(paid_amount,0) else 0 end) paid_amt,
+		  sum(case when payment_status='Not Paid' then 1 else 0 end) unpaid_n,
+		  sum(case when payment_status='Not Paid' then coalesce(invoiced_amount,0)-coalesce(paid_amount,0) else 0 end) unpaid_amt,
+		  sum(case when payment_status='Partial Payment' then 1 else 0 end) partial_n,
+		  sum(case when payment_status='Partial Payment' then coalesce(invoiced_amount,0)-coalesce(paid_amount,0) else 0 end) partial_amt,
+		  sum(case when payment_status='Hold / Dispute' then 1 else 0 end) hold_n,
+		  sum(case when payment_status='Hold / Dispute' then coalesce(invoiced_amount,0)-coalesce(paid_amount,0) else 0 end) hold_amt
+		from {jo} where {money_where}
+	""", as_dict=True)[0]
+	money["billing"] = {k: float(v or 0) for k, v in bill.items()}
 
 	by_service = frappe.db.sql(
 		f"""select coalesce(it.item_name, jo.service, 'Unknown') label, count(*) value,

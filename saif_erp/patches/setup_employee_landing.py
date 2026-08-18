@@ -46,4 +46,14 @@ def execute():
 			continue
 		for r in MANAGER_ROLES:
 			_ensure_ws_role(name, r)
+
+	# 2b) the ERPNext 'Home' workspace ships Chart of Accounts / Stock / Item / Settings
+	# links and is granted to Employee/Accountant — so on the bare desk staff & Admin
+	# Support land on its cluttered sidebar instead of the clean SGA one. Restrict Home
+	# to management: replace its roles with MANAGER_ROLES so staff never see it.
+	if frappe.db.exists("Workspace", "Home"):
+		frappe.db.delete("Has Role", {"parenttype": "Workspace", "parent": "Home"})
+		for r in MANAGER_ROLES:
+			_ensure_ws_role("Home", r)
+
 	frappe.clear_cache()

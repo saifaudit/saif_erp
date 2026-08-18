@@ -40,9 +40,10 @@ STATUS_MAP = {
 	"overdue": "Not Paid",
 	"unpaid": "Not Paid",
 	"viewed": "Not Paid",
-	"draft": "Not Created",
-	# "void" / "written_off" -> left to a human (never auto-set)
 }
+# Not-yet-finalised / dead invoices are NOT synced at all — a draft isn't a real
+# invoice and must never overwrite a Job Order's manually-entered figures.
+SKIP_STATUSES = {"draft", "void", "written_off"}
 # Job Order fields this sync is allowed to touch — nothing else.
 SYNCED_FIELDS = ("invoice_number", "invoice_date", "invoiced_amount",
                  "paid_amount", "balance_amount", "payment_status")
@@ -202,8 +203,11 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 	if invoices is None:
 		invoices = fetch_invoices(modified_since=modified_since)
 
-	changes, unmatched, skipped = [], [], 0
+	changes, unmatched, skipped, draft_skipped = [], [], 0, 0
 	for inv in invoices:
+		if (inv.get("status") or "").lower() in SKIP_STATUSES:
+			draft_skipped += 1   # draft/void/written-off never overwrite ERP figures
+			continue
 		jo = extract_jo(inv, jo_field, jo_pattern)
 		if not jo or not frappe.db.exists("Job Order", jo):
 			unmatched.append({"invoice": inv.get("invoice_number"),
@@ -231,7 +235,8 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 
 	summary = {"mode": "DRY-RUN" if dry_run else "APPLIED",
 	           "pulled": len(invoices), "changed": len(changes),
-	           "unchanged": skipped, "unmatched": len(unmatched)}
+	           "unchanged": skipped, "unmatched": len(unmatched),
+	           "draft_skipped": draft_skipped}
 	return {"summary": summary, "changes": changes, "unmatched": unmatched}
 
 

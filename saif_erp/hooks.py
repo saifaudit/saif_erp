@@ -27,7 +27,7 @@ app_license = "mit"
 # include js, css files in header of desk.html
 # app_include_css = "/assets/saif_erp/css/saif_erp.css"
 # desk-load alert for expired / expiring / missing employee documents (HR/mgmt only)
-app_include_js = "/assets/saif_erp/js/doc_expiry_alert.js"
+app_include_js = "doc_expiry_alert.bundle.js"
 
 # add the document-expiry alert counts to the desk boot for eligible users
 boot_session = "saif_erp.boot.boot_session"

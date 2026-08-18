@@ -1,6 +1,23 @@
 // Copyright (c) 2026, SGA World FZ LLC and contributors
 // Desk-load alert for HR/management: expired / expiring / missing employee documents.
 // Data comes from boot (saif_erp.boot.boot_session); only sent to eligible roles.
+// Send the bare desk (/app or /desk) to the SGA Dashboard page, so the sidebar is the
+// clean SGA one instead of whatever workspace shell the desk defaults to.
+frappe.after_ajax(() => {
+	if (window.__sga_landing_checked) return;
+	window.__sga_landing_checked = true;
+	setTimeout(() => {
+		try {
+			const r = frappe.get_route() || [];
+			const s = r.join("/").toLowerCase();
+			const isBareHome = r.length === 0 || s === "workspaces" || s.startsWith("workspaces/") || s === "home" || s === "app";
+			if (isBareHome && s.indexOf("sga-dashboard") === -1) {
+				frappe.set_route("sga-dashboard");
+			}
+		} catch (e) { /* noop */ }
+	}, 120);
+});
+
 frappe.after_ajax(() => {
 	// compliance filing deadlines (VAT / Corporate Tax)
 	const cf = frappe.boot && frappe.boot.compliance_alert;

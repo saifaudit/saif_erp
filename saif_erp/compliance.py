@@ -97,6 +97,114 @@ def sync_job_order(doc, method=None):
 	reg.save(ignore_permissions=True)
 
 
+# (label, min_days, max_days, hex_colour, frappe_indicator) — None = open-ended
+FILING_BANDS = [
+	("Overdue", None, -1, "#8b1a1a", "Red"),
+	("≤ 30 days", 0, 30, "#e0533d", "Red"),
+	("31 – 60 days", 31, 60, "#e8804d", "Orange"),
+	("61 – 90 days", 61, 90, "#e6a817", "Orange"),
+	("> 90 days", 91, None, "#22a06b", "Green"),
+]
+
+
+def filing_band(days):
+	for label, lo, hi, color, ind in FILING_BANDS:
+		if lo is None:
+			if days <= hi:
+				return label, color, ind
+		elif hi is None:
+			if days >= lo:
+				return label, color, ind
+		elif lo <= days <= hi:
+			return label, color, ind
+	return FILING_BANDS[-1][0], FILING_BANDS[-1][3], FILING_BANDS[-1][4]
+
+
+def get_open_filings(accountant=None, within_days=None, include_overdue=True):
+	"""Open filing periods (not yet Filed) from ACTIVE registers, soonest due first,
+	with days-to-due and an urgency band. accountant scopes to one person."""
+	conds = ["cr.active = 1", "cfp.status in ('Pending','Job Created')", "cfp.due_date is not null"]
+	params = {}
+	if accountant:
+		conds.append("cfp.accountant = %(acc)s")
+		params["acc"] = accountant
+	rows = frappe.db.sql(
+		f"""select cr.name register, cr.customer, cr.customer_name, cr.service, cr.company,
+			cfp.period_label, cfp.period_end_date, cfp.due_date, cfp.status,
+			cfp.job_order, cfp.accountant, datediff(cfp.due_date, curdate()) days_left
+		from `tabCompliance Filing Period` cfp
+		join `tabCompliance Register` cr on cr.name = cfp.parent
+		where {' and '.join(conds)}
+		order by cfp.due_date""",
+		params, as_dict=True,
+	)
+	out = []
+	for r in rows:
+		if within_days is not None and r.days_left > within_days:
+			continue
+		if not include_overdue and r.days_left < 0:
+			continue
+		r["band"], r["_color"], r["indicator"] = filing_band(r.days_left)
+		out.append(r)
+	return out
+
+
+def _accountant_ok(user):
+	"""The assigned accountant is a valid recipient only if their login is enabled and
+	their Employee (if any) is still Active — i.e. not resigned."""
+	if not user or not frappe.db.get_value("User", user, "enabled"):
+		return False
+	status = frappe.db.get_value("Employee", {"user_id": user}, "status")
+	return status in (None, "Active")
+
+
+def _manager_recipients():
+	users = frappe.get_all("Has Role",
+	                       {"role": ["in", ["Job Order Admin", "Job Order Partner"]], "parenttype": "User"},
+	                       pluck="parent")
+	users = [u for u in set(users) if "@" in u and u not in ("Administrator", "Guest")]
+	return users or ["santhosh@saifaudit.com"]
+
+
+def notify_compliance_deadlines():
+	"""Daily reminder: email the current accountant + info@ (+ manager fallback if the
+	accountant has resigned) 30/15/7 days before each filing's due date. Dormant on the
+	local bench (scheduler + email off); fires on production."""
+	reminder_days = frappe.conf.get("saif_compliance_reminder_days") or REMINDER_DAYS
+	info = frappe.conf.get("saif_compliance_info_email") or "info@saifaudit.com"
+	for f in get_open_filings(within_days=max(reminder_days), include_overdue=False):
+		if f["days_left"] not in reminder_days:
+			continue
+		recipients = []
+		if _accountant_ok(f.get("accountant")):
+			recipients.append(f["accountant"])
+		else:
+			recipients += _manager_recipients()  # resigned/disabled -> escalate
+		if info and info not in recipients:
+			recipients.append(info)
+		if not recipients:
+			continue
+		subject = "Filing due in {n} days: {svc} — {cust}".format(
+			n=f["days_left"], svc=f["service"], cust=f["customer_name"] or f["customer"])
+		message = frappe.render_template(
+			"""<p>A statutory filing is due soon.</p>
+			<table cellpadding="6" style="border-collapse:collapse">
+			<tr><td><b>Client</b></td><td>{{ cust }}</td></tr>
+			<tr><td><b>Service</b></td><td>{{ svc }}</td></tr>
+			<tr><td><b>Period</b></td><td>{{ period }}</td></tr>
+			<tr><td><b>Due date</b></td><td>{{ due }}</td></tr>
+			<tr><td><b>Days remaining</b></td><td style="color:#c1272d"><b>{{ n }}</b></td></tr>
+			<tr><td><b>Job Order</b></td><td>{{ jo or "—" }}</td></tr>
+			</table>
+			<p>Please complete and file before the due date.</p>""",
+			{"cust": f["customer_name"] or f["customer"], "svc": f["service"],
+			 "period": f["period_label"], "due": frappe.utils.formatdate(f["due_date"]),
+			 "n": f["days_left"], "jo": f.get("job_order")},
+		)
+		frappe.sendmail(recipients=recipients, subject=subject, message=message,
+		                reference_doctype="Compliance Register", reference_name=f["register"])
+
+
 def seed_from_job_orders():
 	"""One-time: build registers from existing VAT/CT Job Orders (parsing the period
 	text). Safe to re-run."""

@@ -156,9 +156,10 @@ boot_session = "saif_erp.boot.boot_session"
 # Monthly Job Order reports: 06:00 on the 1st, covering the previous month.
 # Dormant on the local bench (scheduler + email are off); fires on production.
 scheduler_events = {
-	# Document-expiry reminders: email HR + the employee 30/7 days before expiry.
+	# Document-expiry + compliance-deadline reminders (email HR/accountant 30/15/7 days ahead).
 	"daily": [
-		"saif_erp.document_expiry.notify_document_expiry"
+		"saif_erp.document_expiry.notify_document_expiry",
+		"saif_erp.compliance.notify_compliance_deadlines",
 	],
 	"cron": {
 		"0 6 1 * *": [

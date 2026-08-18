@@ -26,7 +26,9 @@
 				if (isSuperAdmin()) return;
 				var r = frappe.get_route() || [];
 				var s = r.join("/").toLowerCase();
-				var bareHome = r.length === 0 || s === "workspaces" || s.indexOf("workspaces/") === 0 || s === "home";
+				var p = window.location.pathname.replace(/\/+$/, "");
+				var bareHome = p === "/app" || p === "/desk" || r.length === 0 ||
+					s === "workspaces" || s.indexOf("workspaces/") === 0 || s === "home";
 				if (bareHome && s.indexOf("sga-dashboard") === -1) {
 					frappe.set_route("sga-dashboard");
 				}

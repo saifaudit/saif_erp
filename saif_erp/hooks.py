@@ -267,8 +267,14 @@ doc_events = {
 	"Job Order": {
 		"validate": "saif_erp.job_order.enforce_review",
 		"before_update_after_submit": "saif_erp.job_order.enforce_review",
-		"on_update": "saif_erp.job_order.sync_approval_status",
-		"on_update_after_submit": "saif_erp.job_order.sync_approval_status",
+		"on_update": [
+			"saif_erp.job_order.sync_approval_status",
+			"saif_erp.compliance.sync_job_order",
+		],
+		"on_update_after_submit": [
+			"saif_erp.job_order.sync_approval_status",
+			"saif_erp.compliance.sync_job_order",
+		],
 	},
 }
 

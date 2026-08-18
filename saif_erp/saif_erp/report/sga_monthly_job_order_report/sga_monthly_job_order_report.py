@@ -50,6 +50,9 @@ def compute_team_ratings(frm, to):
 	"""Per-employee metrics for the period, scored RELATIVE to the whole team.
 	Volume credits owner + collaborators; invoiced / finished / turnaround credit
 	the owning accountant only. Returns {user_id: {...score, stars, rank...}}."""
+	from saif_erp import api
+	# management staff (approvers/reviewers) are not rated or ranked as accountants
+	ex_users = set(api.hr_report_exclude_users())
 	frm, to = getdate(frm), getdate(to)
 	params = {"from": frm, "to": to, "active": ACTIVE}
 	period = ("(jo.job_date between %(from)s and %(to)s"
@@ -72,6 +75,8 @@ def compute_team_ratings(frm, to):
 
 	agg = {}
 	for r in rows:
+		if r.emp in ex_users:
+			continue  # management/approver — never listed or rated as staff
 		m = agg.setdefault(r.emp, {"volume": 0, "invoiced": 0.0, "collected": 0.0,
 		                           "finished": 0, "turns": [], "reviews": []})
 		m["volume"] += 1
@@ -103,6 +108,7 @@ def compute_team_ratings(frm, to):
 			"Employee", filters={"status": "Active", "user_id": ["is", "set"]},
 			fields=["user_id"],
 		)
+		if e.user_id not in ex_users
 	}
 	for m in agg.values():
 		m["avg_turn"] = round(sum(m["turns"]) / len(m["turns"])) if m["turns"] else None

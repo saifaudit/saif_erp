@@ -33,6 +33,13 @@ def get_data(filters):
 	conditions = ["l.docstatus = 1"]
 	params = {"from_date": filters.from_date, "to_date": filters.to_date}
 
+	# leave out management staff (they approve/review, not tracked as staff)
+	from saif_erp import api
+	ex = api.hr_report_exclude_names()
+	if ex:
+		conditions.append("l.employee not in %(ex)s")
+		params["ex"] = tuple(ex)
+
 	if filters.get("company"):
 		conditions.append("e.company = %(company)s")
 		params["company"] = filters.company

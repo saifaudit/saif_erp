@@ -140,12 +140,19 @@ def _attendance_for(emp, month=None):
 	        "employee": emp, "from_date": str(month_start), "to_date": str(cap_end)}
 
 
-def hr_report_exclude_names():
-	"""Employee records to leave OUT of the staff HR reports (management who don't
-	need attendance tracking). By user id so it survives across sites; override
-	with site_config `saif_hr_report_exclude`."""
-	users = frappe.conf.get("saif_hr_report_exclude") or [
+def hr_report_exclude_users():
+	"""User ids of management staff to leave OUT of the staff HR / performance
+	reports — they approve/review, they don't do accountant or attendance work,
+	so they should not be listed or rated as staff. By user id so it survives
+	across sites; override with site_config `saif_hr_report_exclude`."""
+	return frappe.conf.get("saif_hr_report_exclude") or [
 		"santhosh@saifaudit.com", "chandy@saifaudit.com"]
+
+
+def hr_report_exclude_names():
+	"""Employee records for the excluded management users (see
+	hr_report_exclude_users) — used to filter them out of the staff HR reports."""
+	users = hr_report_exclude_users()
 	return frappe.get_all("Employee", {"user_id": ["in", users]}, pluck="name")
 
 

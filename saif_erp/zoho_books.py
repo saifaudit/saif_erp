@@ -40,10 +40,15 @@ STATUS_MAP = {
 	"overdue": "Not Paid",
 	"unpaid": "Not Paid",
 	"viewed": "Not Paid",
+	# SGA workflow: invoices are issued to the client while still "draft" and only
+	# finalised (sent/paid) later, often near the VAT return. So a draft IS a real,
+	# issued invoice = unpaid, treated the same as "sent". Draft-lag is handled in
+	# sync_invoices: a draft never downgrades a payment already recorded in ERP,
+	# because Zoho cannot record a payment against a draft.
+	"draft": "Not Paid",
 }
-# Not-yet-finalised / dead invoices are NOT synced at all — a draft isn't a real
-# invoice and must never overwrite a Job Order's manually-entered figures.
-SKIP_STATUSES = {"draft", "void", "written_off"}
+# Only truly dead invoices are ignored entirely.
+SKIP_STATUSES = {"void", "written_off"}
 # Job Order fields this sync is allowed to touch — nothing else.
 SYNCED_FIELDS = ("invoice_number", "invoice_date", "invoiced_amount",
                  "paid_amount", "balance_amount", "payment_status")
@@ -54,6 +59,25 @@ def _conf():
 	if not c:
 		frappe.throw("Zoho Books is not configured (site_config key 'zoho_books').")
 	return c
+
+
+def _sources():
+	"""The list of Zoho organisations to sync — one per billing entity (SAIF,
+	SGA World, ...). Each entry has its own organization_id and may carry its own
+	credentials; when it omits them it inherits the shared top-level
+	region/client_id/client_secret/refresh_token, so multiple organisations under
+	ONE Zoho login share a single credential set. A legacy single-org config (no
+	`sources`) is treated as one source."""
+	c = _conf()
+	shared = {k: c.get(k) for k in ("region", "client_id", "client_secret", "refresh_token")}
+	srcs = c.get("sources") or [c]
+	out = []
+	for s in srcs:
+		m = dict(shared)
+		m.update({k: v for k, v in s.items() if v is not None})
+		m["label"] = s.get("label") or m.get("organization_id")
+		out.append(m)
+	return out
 
 
 def _dc(region):
@@ -86,58 +110,57 @@ def get_refresh_token(grant_token, region=None, client_id=None, client_secret=No
 	return data  # contains refresh_token — copy it into site_config, do NOT log
 
 
-def _access_token():
-	"""Fetch a short-lived access token from the stored refresh token, cached
-	~55 min so we don't re-mint on every call."""
+def _access_token(src):
+	"""Short-lived access token for one source, cached per client ~55 min."""
 	import requests
 
-	cached = frappe.cache().get_value("zoho_books_access_token")
+	key = "zoho_books_at_%s" % (src.get("client_id") or "")
+	cached = frappe.cache().get_value(key)
 	if cached:
 		return cached
-	c = _conf()
-	accounts, _ = _dc(c.get("region"))
+	accounts, _ = _dc(src.get("region"))
 	r = requests.post(f"{accounts}/oauth/v2/token", params={
 		"grant_type": "refresh_token",
-		"refresh_token": c["refresh_token"],
-		"client_id": c["client_id"],
-		"client_secret": c["client_secret"],
+		"refresh_token": src["refresh_token"],
+		"client_id": src["client_id"],
+		"client_secret": src["client_secret"],
 	}, timeout=30)
 	tok = r.json().get("access_token")
 	if not tok:
 		frappe.throw(f"Zoho token refresh failed: {r.json()}")
-	frappe.cache().set_value("zoho_books_access_token", tok, expires_in_sec=3300)
+	frappe.cache().set_value(key, tok, expires_in_sec=3300)
 	return tok
 
 
-def _api_get(path, params=None):
+def _api_get(src, path, params=None):
 	import requests
 
-	c = _conf()
-	_, api = _dc(c.get("region"))
+	_, api = _dc(src.get("region"))
 	params = dict(params or {})
-	params["organization_id"] = c["organization_id"]
+	params["organization_id"] = src["organization_id"]
 	r = requests.get(f"{api}/books/v3{path}",
-	                 headers={"Authorization": f"Zoho-oauthtoken {_access_token()}"},
+	                 headers={"Authorization": f"Zoho-oauthtoken {_access_token(src)}"},
 	                 params=params, timeout=60)
 	r.raise_for_status()
 	return r.json()
 
 
-def list_organizations():
-	"""Helper for setup — find your organization_id."""
-	return _api_get("/organizations").get("organizations", [])
+def list_organizations(src=None):
+	"""Helper for setup — find your organization_id. Uses the first source's
+	credentials when none is given."""
+	return _api_get(src or _sources()[0], "/organizations").get("organizations", [])
 
 
-def fetch_invoices(modified_since=None, max_pages=50):
-	"""Pull invoices (list view has header totals + balance + status), paginated.
-	`modified_since` (YYYY-MM-DD) limits to recently-changed invoices for the
-	daily incremental sync."""
+def fetch_invoices(src, modified_since=None, max_pages=50):
+	"""Pull invoices for ONE source (list view has header totals + balance +
+	status), paginated. `modified_since` (YYYY-MM-DD) limits to recently-changed
+	invoices for the daily incremental sync."""
 	out, page = [], 1
 	while page <= max_pages:
 		params = {"page": page, "per_page": 200}
 		if modified_since:
 			params["last_modified_time"] = str(modified_since)
-		data = _api_get("/invoices", params)
+		data = _api_get(src, "/invoices", params)
 		out.extend(data.get("invoices", []))
 		if not data.get("page_context", {}).get("has_more_page"):
 			break
@@ -200,13 +223,19 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 	jo_pattern = c.get("jo_pattern")
 	preserve_hold = c.get("preserve_hold", 1)
 
+	per_source = {}
 	if invoices is None:
-		invoices = fetch_invoices(modified_since=modified_since)
+		invoices = []
+		for src in _sources():
+			got = fetch_invoices(src, modified_since=modified_since)
+			per_source[src["label"]] = len(got)
+			invoices += got
 
-	changes, unmatched, skipped, draft_skipped = [], [], 0, 0
+	changes, unmatched, skipped, skipped_status = [], [], 0, 0
 	for inv in invoices:
-		if (inv.get("status") or "").lower() in SKIP_STATUSES:
-			draft_skipped += 1   # draft/void/written-off never overwrite ERP figures
+		status = (inv.get("status") or "").lower()
+		if status in SKIP_STATUSES:
+			skipped_status += 1   # void / written-off never overwrite ERP figures
 			continue
 		jo = extract_jo(inv, jo_field, jo_pattern)
 		if not jo or not frappe.db.exists("Job Order", jo):
@@ -217,6 +246,14 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 		new = _invoice_values(inv)
 		if new["payment_status"] is None:
 			new["payment_status"] = cur.payment_status  # unknown status -> leave as-is
+		# Draft-lag: a draft is an issued invoice but Zoho cannot record a payment
+		# against it, so a draft may refresh the invoice header facts but must never
+		# undo a payment already recorded in ERP.
+		if status == "draft" and (flt(cur.paid_amount) > 0
+		                          or cur.payment_status in ("Partial Payment", "Paid")):
+			new["paid_amount"] = cur.paid_amount
+			new["balance_amount"] = cur.balance_amount
+			new["payment_status"] = cur.payment_status
 		if preserve_hold and cur.payment_status == "Hold / Dispute":
 			new["payment_status"] = "Hold / Dispute"    # never auto-clear a manual hold
 		diff = {f: new[f] for f in SYNCED_FIELDS
@@ -236,7 +273,7 @@ def sync_invoices(dry_run=True, modified_since=None, invoices=None):
 	summary = {"mode": "DRY-RUN" if dry_run else "APPLIED",
 	           "pulled": len(invoices), "changed": len(changes),
 	           "unchanged": skipped, "unmatched": len(unmatched),
-	           "draft_skipped": draft_skipped}
+	           "skipped_status": skipped_status, "per_source": per_source}
 	return {"summary": summary, "changes": changes, "unmatched": unmatched}
 
 

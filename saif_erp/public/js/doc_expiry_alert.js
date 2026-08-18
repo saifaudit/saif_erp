@@ -1,22 +1,17 @@
 // Copyright (c) 2026, SGA World FZ LLC and contributors
 // Desk-load alert for HR/management: expired / expiring / missing employee documents.
 // Data comes from boot (saif_erp.boot.boot_session); only sent to eligible roles.
-// Send the bare desk (/app or /desk) to the SGA Dashboard page, so the sidebar is the
-// clean SGA one instead of whatever workspace shell the desk defaults to.
-frappe.after_ajax(() => {
-	if (window.__sga_landing_checked) return;
-	window.__sga_landing_checked = true;
-	setTimeout(() => {
-		try {
-			const r = frappe.get_route() || [];
-			const s = r.join("/").toLowerCase();
-			const isBareHome = r.length === 0 || s === "workspaces" || s.startsWith("workspaces/") || s === "home" || s === "app";
-			if (isBareHome && s.indexOf("sga-dashboard") === -1) {
-				frappe.set_route("sga-dashboard");
-			}
-		} catch (e) { /* noop */ }
-	}, 120);
-});
+// The bare desk (/app or /desk) loads a workspace shell with a cluttered sidebar while
+// keeping the bare URL. Hard-redirect that URL to the SGA Dashboard page so it loads
+// fresh with the clean SGA sidebar (same as typing /app/sga-dashboard).
+(function () {
+	try {
+		var p = window.location.pathname.replace(/\/+$/, "");
+		if (p === "/app" || p === "/desk") {
+			window.location.replace(window.location.origin + "/app/sga-dashboard");
+		}
+	} catch (e) { /* noop */ }
+})();
 
 frappe.after_ajax(() => {
 	// compliance filing deadlines (VAT / Corporate Tax)

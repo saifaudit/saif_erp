@@ -205,6 +205,54 @@ def notify_compliance_deadlines():
 		                reference_doctype="Compliance Register", reference_name=f["register"])
 
 
+def _period_label(frequency, pe):
+	from frappe.utils import add_days, add_months, formatdate
+	pe = getdate(pe)
+	if frequency == "Annual":
+		return "Year ended " + formatdate(pe, "dd MMM yyyy")
+	start = add_days(add_months(pe, -3), 1)
+	return formatdate(start, "dd MMM yyyy") + " to " + formatdate(pe, "dd MMM yyyy")
+
+
+def generate_forward_periods(horizon_days=120):
+	"""For each ACTIVE register whose sequence is still current, create the upcoming
+	period(s) as 'Pending' (no Job Order yet) so approaching deadlines surface even
+	before anyone opens the next job. Dormant sequences (big gap since last filing) are
+	skipped — they need review / deactivation, not auto-generated overdue rows."""
+	step = {"Quarterly": 3, "Annual": 12}
+	horizon = getdate(add_days(today(), horizon_days))
+	created = 0
+	for reg_name in frappe.get_all("Compliance Register", {"active": 1}, pluck="name"):
+		reg = frappe.get_doc("Compliance Register", reg_name)
+		months = step.get(reg.frequency)
+		with_end = [p for p in reg.periods if p.period_end_date]
+		if not months or not with_end:
+			continue
+		last = max(with_end, key=lambda p: getdate(p.period_end_date))
+		last_end = getdate(last.period_end_date)
+		# skip dormant sequences (gap > ~2 periods since the last filing)
+		if last_end < getdate(add_months(getdate(today()), -2 * months)):
+			continue
+		default_acc = last.accountant
+		changed, pe = False, last_end
+		for _ in range(12):
+			# snap to the last day of the month (VAT/CT periods end on month-end)
+			pe = getdate(get_last_day(add_months(pe, months)))
+			due = compute_due_date(reg.service, pe)
+			if not due or getdate(due) > horizon:
+				break
+			if any(getdate(p.period_end_date) == pe for p in reg.periods):
+				continue
+			reg.append("periods", {"period_end_date": pe, "due_date": due, "status": "Pending",
+			                       "accountant": default_acc, "period_label": _period_label(reg.frequency, pe)})
+			changed = True
+			created += 1
+		if changed:
+			reg.save(ignore_permissions=True)
+	frappe.db.commit()
+	return created
+
+
 def seed_from_job_orders():
 	"""One-time: build registers from existing VAT/CT Job Orders (parsing the period
 	text). Safe to re-run."""

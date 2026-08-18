@@ -159,6 +159,7 @@ scheduler_events = {
 	# Document-expiry + compliance-deadline reminders (email HR/accountant 30/15/7 days ahead).
 	"daily": [
 		"saif_erp.document_expiry.notify_document_expiry",
+		"saif_erp.compliance.generate_forward_periods",
 		"saif_erp.compliance.notify_compliance_deadlines",
 	],
 	"cron": {

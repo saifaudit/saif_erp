@@ -228,6 +228,16 @@ def _job_aging(jo, extra_where, params):
 	return out
 
 
+def _filings_summary(accountant=None):
+	"""Open compliance filings (within 90 days + overdue) bucketed for a dashboard card."""
+	from collections import Counter
+	from saif_erp.compliance import get_open_filings
+	fils = get_open_filings(accountant=accountant, within_days=90, include_overdue=True)
+	bc = Counter(f["band"] for f in fils)
+	return {"total": len(fils), "Overdue": bc.get("Overdue", 0), "≤ 30 days": bc.get("≤ 30 days", 0),
+	        "31 – 60 days": bc.get("31 – 60 days", 0), "61 – 90 days": bc.get("61 – 90 days", 0)}
+
+
 ACTIVE_STATUSES = "('Open','Progress','Under Review','Awaiting Client Data','Temporarily stopped','Pending')"
 
 
@@ -305,6 +315,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 			"awaiting_jo": frappe.db.count("Quotation", {"owner": me, "custom_client_acceptance_confirmed": 1, "custom_job_order_created": 0, "docstatus": 1}),
 		}
 		my_aging = _job_aging(jo, " AND accountant=%(me)s", {"me": me})
+		my_filings = _filings_summary(accountant=me)
 		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
 		_p = _personal(emp)
 		my_leave, my_attendance, my_checkins = _p["my_leave"], _p["my_attendance"], _p["my_checkins"]
@@ -312,6 +323,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 			"greeting": greeting, "manager": False, "my_status": my_status, "my_counts": my_counts,
 			"recent_mine": recent, "my_leave": my_leave, "my_action": my_action,
 			"my_by_service": my_by_service, "my_payment": my_payment, "my_aging": my_aging,
+			"my_filings": my_filings,
 			"my_attendance": my_attendance, "my_checkins": my_checkins, "my_proposals": my_proposals,
 		}
 
@@ -505,6 +517,9 @@ def dashboard_data(period="year", company=None, att_month=None):
 	# like the rest of the manager view; company_scope lets the UI match the drill-down.
 	job_aging = _job_aging(jo, cw(), {})
 
+	# Compliance filings due (firm-wide, operational — kept for Admin Support).
+	filings = _filings_summary()
+
 	# Employee document expiry summary (passport/visa/Emirates ID/etc within 90 days).
 	# Personal-document data — full management only (blanked for Admin Support below).
 	from collections import Counter as _Counter
@@ -529,7 +544,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 	return {
 		"greeting": greeting, "manager": True, "full_mgmt": full_mgmt, "counts": counts, "money": money,
 		"approvals": approvals,
-		"job_aging": job_aging, "company_scope": comp, "doc_expiry": doc_expiry,
+		"job_aging": job_aging, "company_scope": comp, "doc_expiry": doc_expiry, "filings": filings,
 		"active_jobs": active, "job_status": job_status, "payment_status": payment_status,
 		"by_service": by_service, "by_month": by_month, "by_accountant": by_accountant,
 		"orphan_active": orphan_active, "proposals": proposals,

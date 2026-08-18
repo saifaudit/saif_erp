@@ -2,6 +2,22 @@
 // Desk-load alert for HR/management: expired / expiring / missing employee documents.
 // Data comes from boot (saif_erp.boot.boot_session); only sent to eligible roles.
 frappe.after_ajax(() => {
+	// compliance filing deadlines (VAT / Corporate Tax)
+	const cf = frappe.boot && frappe.boot.compliance_alert;
+	if (cf) {
+		const cparts = [];
+		if (cf.overdue) cparts.push(`<b>${cf.overdue}</b> overdue`);
+		if (cf.soon) cparts.push(`<b>${cf.soon}</b> due in 30 days`);
+		if (cparts.length) {
+			const curl = "/app/query-report/Compliance Filings Due";
+			const who = cf.self ? "Your filings" : "Filings";
+			frappe.show_alert(
+				{ message: `📅 ${who}: ${cparts.join(" · ")} — <a href="${curl}">view</a>`, indicator: cf.overdue ? "red" : "orange" },
+				20,
+			);
+		}
+	}
+
 	const a = frappe.boot && frappe.boot.doc_expiry_alert;
 	if (!a) return;
 	const parts = [];

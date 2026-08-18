@@ -231,6 +231,9 @@ function render($root, d, actions) {
 	// job order aging (active jobs by days since job date) — operational, shown to Admin Support too
 	parts.push(section("Job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.job_aging, d.company_scope ? "company=" + encodeURIComponent(d.company_scope) + "&" : "")}</div><div style="margin-top:14px">${agingReportBtn()}</div></div>`));
 
+	// compliance filings due (firm-wide) — operational, shown to Admin Support too
+	if (d.filings) parts.push(section("Compliance filings due", filingsCard(d.filings)));
+
 	// employee document expiry — full management only (personal-document data)
 	if (d.doc_expiry) parts.push(section("Documents expiring", docExpiryCard(d.doc_expiry)));
 
@@ -379,6 +382,9 @@ function render_limited($root, d) {
 	// my job order aging (active jobs by days since job date)
 	parts.push(section("My job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.my_aging, "accountant=" + encodeURIComponent(g.user || "") + "&")}</div><div style="margin-top:14px">${agingReportBtn()}</div></div>`));
 
+	// my compliance filings due (VAT / Corporate Tax deadlines)
+	if (d.my_filings) parts.push(section("My filings due", filingsCard(d.my_filings)));
+
 	// my work mix + my payment status
 	const paytiles = PAY_META.filter(([k]) => (d.my_payment || {})[k]).map(([k, c]) =>
 		`<a class="sga-stat" href="${joHref({ payment_status: k })}"><span class="dot" style="background:${c}"></span><div class="v">${_int(d.my_payment[k])}</div><div class="n">${_esc(k)}</div></a>`).join("") || '<div class="sga-empty">None</div>';
@@ -451,6 +457,17 @@ function donut(pay) {
 	<div class="sga-donwrap"><div class="sga-donut" style="background:conic-gradient(${stops.join(",")})">
 	  <div class="mid"><b>${paidPct}%</b><span>Paid</span></div></div>
 	  <div class="sga-legend">${legend.join("")}</div></div>`;
+}
+// compliance filings card: bands (overdue -> 90d) linking into the filings report
+function filingsCard(f) {
+	const rep = "/app/query-report/Compliance Filings Due";
+	if (!f || !f.total) {
+		return `<div class="sga-card"><div class="sga-qtitle">VAT · Corporate Tax filings due</div><div class="sga-empty">No open filings 🎉</div></div>`;
+	}
+	const bands = [["Overdue", "#8b1a1a"], ["≤ 30 days", "#e0533d"], ["31 – 60 days", "#e8804d"], ["61 – 90 days", "#e6a817"]];
+	const tiles = bands.map(([b, c]) => `<a class="sga-stat" href="${rep}?band=${encodeURIComponent(b)}"><span class="dot" style="background:${c}"></span><div class="v">${_int(f[b] || 0)}</div><div class="n">${_esc(b)}</div></a>`).join("");
+	const btn = `<a href="${rep}" style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 18px;background:var(--sga-brand);color:#fff;border-radius:10px;text-decoration:none;font-weight:650;font-size:13px;box-shadow:var(--glass-sh)">📅 View compliance filings</a>`;
+	return `<div class="sga-card"><div class="sga-qtitle">VAT · Corporate Tax filings due (within 90 days)</div><div class="sga-stats">${tiles}</div>${btn}</div>`;
 }
 // employee document-expiry card: bands (expired -> 90d) linking into the report
 function docExpiryCard(de) {

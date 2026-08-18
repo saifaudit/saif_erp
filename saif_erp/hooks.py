@@ -161,6 +161,8 @@ scheduler_events = {
 		"saif_erp.document_expiry.notify_document_expiry",
 		"saif_erp.compliance.generate_forward_periods",
 		"saif_erp.compliance.notify_compliance_deadlines",
+		# Zoho Books -> Job Order invoice sync (opt-in via zoho_books.auto_sync)
+		"saif_erp.zoho_books.scheduled_sync",
 	],
 	"cron": {
 		"0 6 1 * *": [

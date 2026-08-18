@@ -17,7 +17,7 @@ frappe.pages["sga-dashboard"].on_page_load = function (wrapper) {
 	function setAttMonth(m) { attMonth = m || ""; load(); }
 	function load() {
 		frappe.call({ method: "saif_erp.api.dashboard_data", args: { period, company: company || undefined, att_month: attMonth || undefined } }).then((r) => {
-			if (r && r.message) render($root, r.message, { setPeriod, setCompany, setAttMonth });
+			if (r && r.message) render($root, r.message, { setPeriod, setCompany, setAttMonth, refresh: load });
 		});
 	}
 	page.set_secondary_action("Refresh", () => load(), "refresh");
@@ -192,7 +192,11 @@ function render($root, d, actions) {
 		const toggle = `<div class="sga-period">
 		  <button data-p="year" class="${period === "year" ? "on" : ""}">This Year</button>
 		  <button data-p="all" class="${period === "all" ? "on" : ""}">All Time</button></div>`;
-		parts.push(`<div class="sga-sec"><div class="sga-eye"><h2>Financial snapshot · ${_esc(money.period_label || "This year")}</h2><span class="rule"></span>${toggle}</div>
+		// pull the latest invoices from Zoho Books on demand (only when configured)
+		const zohoBtn = d.zoho_enabled
+			? `<button class="sga-zoho-sync" title="Pull the latest invoices from Zoho Books and update the matching Job Orders">↻ Sync from Zoho</button>`
+			: "";
+		parts.push(`<div class="sga-sec"><div class="sga-eye"><h2>Financial snapshot · ${_esc(money.period_label || "This year")}</h2><span class="rule"></span>${toggle}${zohoBtn}</div>
 		<div class="sga-grid k4">
 		  ${kpi("Invoiced", _m(money.invoiced), `${money.period_label} · submitted job orders`, "var(--sga-brand)", null, joHref({}))}
 		  ${kpi("Collected", _m(money.collected), `<span class="sga-chip good">${money.collection_rate}% collection rate</span>`, "var(--sga-good)", money.collection_rate, joHref({ payment_status: "Paid" }))}
@@ -312,6 +316,30 @@ function render($root, d, actions) {
 	});
 	$root.find(".sga-attmonth").on("change", function () {
 		if (typeof actions.setAttMonth === "function") actions.setAttMonth($(this).val());
+	});
+	$root.find(".sga-zoho-sync").on("click", function () {
+		const $b = $(this);
+		frappe.confirm(
+			"Pull the latest invoices from Zoho Books and update the matching Job Orders?<br><small>Zoho stays the source of truth — this only reads from it, never writes back.</small>",
+			function () {
+				$b.prop("disabled", true).text("Syncing…");
+				frappe.dom.freeze("Syncing invoices from Zoho Books…");
+				frappe.call({ method: "saif_erp.zoho_books.zoho_sync_now", args: { dry_run: 0 } })
+					.then((r) => {
+						frappe.dom.unfreeze();
+						const s = (r && r.message && r.message.summary) || {};
+						frappe.show_alert({
+							message: `📥 Zoho sync: <b>${s.changed || 0}</b> job orders updated · ${s.unchanged || 0} unchanged · ${s.unmatched || 0} unmatched`,
+							indicator: "green",
+						}, 15);
+						if (typeof actions.refresh === "function") actions.refresh();
+					})
+					.catch(() => {
+						frappe.dom.unfreeze();
+						$b.prop("disabled", false).text("↻ Sync from Zoho");
+					});
+			}
+		);
 	});
 }
 
@@ -855,6 +883,9 @@ a.fstep:hover{transform:translateY(-2px)}
 .sga-period button{border:0;background:var(--sga-surface);color:var(--sga-muted);font-size:12px;font-weight:600;padding:5px 12px;cursor:pointer}
 .sga-period button+button{border-left:1px solid var(--sga-line)}
 .sga-period button.on{background:var(--sga-brand);color:#fff}
+.sga-zoho-sync{margin-left:10px;border:1px solid var(--sga-brand);background:var(--sga-brand);color:#fff;font-size:12px;font-weight:650;padding:5px 12px;border-radius:8px;cursor:pointer;flex:0 0 auto}
+.sga-zoho-sync:hover{filter:brightness(1.08)}
+.sga-zoho-sync:disabled{opacity:.6;cursor:default}
 .sga-warn{margin-top:12px;font-size:12px;color:var(--sga-bad);background:color-mix(in srgb,var(--sga-bad) 10%,transparent);
  border:1px solid color-mix(in srgb,var(--sga-bad) 26%,transparent);border-radius:8px;padding:8px 10px}
 .sga-dash .lnk{cursor:pointer}

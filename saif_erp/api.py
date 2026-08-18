@@ -550,6 +550,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 
 	return {
 		"greeting": greeting, "manager": True, "full_mgmt": full_mgmt, "counts": counts, "money": money,
+		"zoho_enabled": bool(frappe.conf.get("zoho_books")),
 		"approvals": approvals,
 		"job_aging": job_aging, "company_scope": comp, "doc_expiry": doc_expiry, "filings": filings,
 		"active_jobs": active, "job_status": job_status, "payment_status": payment_status,

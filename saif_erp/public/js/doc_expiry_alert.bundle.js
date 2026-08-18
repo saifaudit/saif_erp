@@ -4,12 +4,34 @@
 // The bare desk (/app or /desk) loads a workspace shell with a cluttered sidebar while
 // keeping the bare URL. Hard-redirect that URL to the SGA Dashboard page so it loads
 // fresh with the clean SGA sidebar (same as typing /app/sga-dashboard).
+// Keep staff / Admin Support on the clean SGA Dashboard; super admin (System Manager)
+// keeps the FULL desk — Settings, all workspaces, global search.
 (function () {
+	function isSuperAdmin() {
+		var roles = (window.frappe && frappe.boot && frappe.boot.user && frappe.boot.user.roles) || [];
+		return roles.indexOf("System Manager") !== -1;
+	}
+	// (a) full page load on the bare URL -> hard redirect to the dashboard page
 	try {
 		var p = window.location.pathname.replace(/\/+$/, "");
-		if (p === "/app" || p === "/desk") {
+		if ((p === "/app" || p === "/desk") && !isSuperAdmin()) {
 			window.location.replace(window.location.origin + "/app/sga-dashboard");
+			return;
 		}
+	} catch (e) { /* noop */ }
+	// (b) in-app navigation to the bare home (e.g. the Home button) -> route to the page
+	try {
+		frappe.router.on("change", function () {
+			try {
+				if (isSuperAdmin()) return;
+				var r = frappe.get_route() || [];
+				var s = r.join("/").toLowerCase();
+				var bareHome = r.length === 0 || s === "workspaces" || s.indexOf("workspaces/") === 0 || s === "home";
+				if (bareHome && s.indexOf("sga-dashboard") === -1) {
+					frappe.set_route("sga-dashboard");
+				}
+			} catch (e) { /* noop */ }
+		});
 	} catch (e) { /* noop */ }
 })();
 

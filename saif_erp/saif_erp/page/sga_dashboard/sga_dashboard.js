@@ -230,6 +230,9 @@ function render($root, d, actions) {
 	// job order aging (active jobs by days since job date) — operational, shown to Admin Support too
 	parts.push(section("Job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.job_aging, d.company_scope ? "company=" + encodeURIComponent(d.company_scope) + "&" : "")}</div><div style="margin-top:14px">${agingReportBtn()}</div></div>`));
 
+	// employee document expiry — full management only (personal-document data)
+	if (d.doc_expiry) parts.push(section("Documents expiring", docExpiryCard(d.doc_expiry)));
+
 	// payment donut + services — full management only
 	if (d.full_mgmt) {
 		parts.push(section("Payments & services", `
@@ -447,6 +450,15 @@ function donut(pay) {
 	<div class="sga-donwrap"><div class="sga-donut" style="background:conic-gradient(${stops.join(",")})">
 	  <div class="mid"><b>${paidPct}%</b><span>Paid</span></div></div>
 	  <div class="sga-legend">${legend.join("")}</div></div>`;
+}
+// employee document-expiry card: bands (expired -> 90d) linking into the report
+function docExpiryCard(de) {
+	if (!de) return "";
+	const bands = [["Expired", "#8b1a1a"], ["≤ 30 days", "#e0533d"], ["31 – 60 days", "#e8804d"], ["61 – 90 days", "#e6a817"]];
+	const rep = (b) => "/app/query-report/Employee Document Expiry?band=" + encodeURIComponent(b);
+	const tiles = bands.map(([b, c]) => `<a class="sga-stat" href="${rep(b)}"><span class="dot" style="background:${c}"></span><div class="v">${_int(de[b] || 0)}</div><div class="n">${_esc(b)}</div></a>`).join("");
+	const btn = `<a href="/app/query-report/Employee Document Expiry" style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 18px;background:var(--sga-brand);color:#fff;border-radius:10px;text-decoration:none;font-weight:650;font-size:13px;box-shadow:var(--glass-sh)">🪪 View document expiry report</a>`;
+	return `<div class="sga-card"><div class="sga-qtitle">Passport · Visa · Emirates ID · Labour Card · Insurance — expiring within 90 days</div><div class="sga-stats">${tiles}</div>${btn}</div>`;
 }
 // "View aging report" button -> the colour-coded Job Order Aging report
 function agingReportBtn() {

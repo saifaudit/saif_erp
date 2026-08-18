@@ -152,6 +152,10 @@ app_license = "mit"
 # Monthly Job Order reports: 06:00 on the 1st, covering the previous month.
 # Dormant on the local bench (scheduler + email are off); fires on production.
 scheduler_events = {
+	# Document-expiry reminders: email HR + the employee 30/7 days before expiry.
+	"daily": [
+		"saif_erp.document_expiry.notify_document_expiry"
+	],
 	"cron": {
 		"0 6 1 * *": [
 			"saif_erp.monthly_report_pdf.send_monthly_reports"

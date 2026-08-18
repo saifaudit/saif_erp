@@ -505,6 +505,16 @@ def dashboard_data(period="year", company=None, att_month=None):
 	# like the rest of the manager view; company_scope lets the UI match the drill-down.
 	job_aging = _job_aging(jo, cw(), {})
 
+	# Employee document expiry summary (passport/visa/Emirates ID/etc within 90 days).
+	# Personal-document data — full management only (blanked for Admin Support below).
+	from collections import Counter as _Counter
+	from saif_erp.document_expiry import get_expiring_documents as _ged
+	_docs = _ged(company=comp, within_days=90)
+	_bc = _Counter(d["band"] for d in _docs)
+	doc_expiry = {"total": len(_docs), "Expired": _bc.get("Expired", 0),
+	              "≤ 30 days": _bc.get("≤ 30 days", 0), "31 – 60 days": _bc.get("31 – 60 days", 0),
+	              "61 – 90 days": _bc.get("61 – 90 days", 0)}
+
 	# Admin Support gets an OPERATIONAL view — strip financial data from the payload
 	# so money/sales/aging/debtors are neither shown nor sent.
 	full_mgmt = _is_full_mgmt()
@@ -514,11 +524,12 @@ def dashboard_data(period="year", company=None, att_month=None):
 		sales_monthly = None
 		aging, aging_total, top_debtors, rev_trend, by_service = [], 0, [], [], []
 		compliance = turnaround = None
+		doc_expiry = None
 
 	return {
 		"greeting": greeting, "manager": True, "full_mgmt": full_mgmt, "counts": counts, "money": money,
 		"approvals": approvals,
-		"job_aging": job_aging, "company_scope": comp,
+		"job_aging": job_aging, "company_scope": comp, "doc_expiry": doc_expiry,
 		"active_jobs": active, "job_status": job_status, "payment_status": payment_status,
 		"by_service": by_service, "by_month": by_month, "by_accountant": by_accountant,
 		"orphan_active": orphan_active, "proposals": proposals,

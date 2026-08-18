@@ -51,4 +51,38 @@ def execute():
 		for ptype in ("read", "write"):
 			update_permission_property("Employee", role, 1, ptype, 1, validate=False)
 
+	# 5) Admin Support must manage ALL employees. They carry a blanket "Employee = own"
+	# User Permission (apply-to-all) that blocks opening other employees and scopes the
+	# document report. Replace it with targeted restrictions so salary/payroll stay
+	# scoped to their own, while the Employee doctype + report open up.
+	_free_admin_support_employee_access()
+
 	frappe.clear_cache(doctype="Employee")
+
+
+# payroll doctypes to keep scoped to the user's own record (Employee.ctc itself is
+# already hidden by permlevel 1 above).
+SCOPED_PAYROLL_DOCTYPES = ["Salary Slip", "Salary Structure Assignment"]
+
+
+def _free_admin_support_employee_access():
+	# management roles that must be able to manage all employees
+	roles = ["Job Order Admin Support", "Job Order Admin", "Job Order Partner"]
+	users = set(frappe.get_all("Has Role",
+	                           {"role": ["in", roles], "parenttype": "User"}, pluck="parent"))
+	for user in users:
+		emp = frappe.db.get_value("Employee", {"user_id": user}, "name")
+		if not emp:
+			continue
+		# drop the blanket apply-to-all Employee restriction
+		for up in frappe.get_all("User Permission",
+		                         {"user": user, "allow": "Employee", "apply_to_all_doctypes": 1}, pluck="name"):
+			frappe.delete_doc("User Permission", up, ignore_permissions=True, force=True)
+		# keep payroll scoped to their own employee
+		for dt in SCOPED_PAYROLL_DOCTYPES:
+			if not frappe.db.exists("User Permission",
+			                        {"user": user, "allow": "Employee", "for_value": emp, "applicable_for": dt}):
+				frappe.get_doc({
+					"doctype": "User Permission", "user": user, "allow": "Employee",
+					"for_value": emp, "apply_to_all_doctypes": 0, "applicable_for": dt,
+				}).insert(ignore_permissions=True)

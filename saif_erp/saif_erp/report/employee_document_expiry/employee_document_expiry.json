@@ -9,7 +9,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letterhead": null,
- "modified": "2026-08-17 17:00:00.000000",
+ "modified": "2026-08-18 20:00:00.000000",
  "module": "SAIF ERP",
  "name": "Employee Document Expiry",
  "owner": "Administrator",
@@ -23,6 +23,7 @@
   {"role": "HR User"},
   {"role": "Job Order Admin"},
   {"role": "Job Order Partner"},
-  {"role": "Job Order Admin Support"}
+  {"role": "Job Order Admin Support"},
+  {"role": "Employee"}
  ]
 }

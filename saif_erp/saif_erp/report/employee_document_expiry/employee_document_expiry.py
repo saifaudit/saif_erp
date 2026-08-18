@@ -5,12 +5,24 @@ expiry, colour-coded by urgency (expired -> red, > 90 days -> green)."""
 
 from collections import Counter
 
+import frappe
+
 from saif_erp.document_expiry import BANDS, get_expiring_documents
+
+MGMT_ROLES = {"System Manager", "HR Manager", "HR User", "Job Order Admin",
+              "Job Order Partner", "Job Order Admin Support"}
 
 
 def execute(filters=None):
 	filters = filters or {}
-	rows = get_expiring_documents(company=filters.get("company"))
+	user = frappe.session.user
+	# HR / management see everyone (optionally by company); a regular employee sees
+	# only their own documents.
+	if user != "Administrator" and not (MGMT_ROLES & set(frappe.get_roles(user))):
+		emp = frappe.db.get_value("Employee", {"user_id": user}, "name")
+		rows = get_expiring_documents(employee=emp, active_only=False) if emp else []
+	else:
+		rows = get_expiring_documents(company=filters.get("company"))
 
 	if filters.get("document"):
 		rows = [r for r in rows if r["document"] == filters.get("document")]

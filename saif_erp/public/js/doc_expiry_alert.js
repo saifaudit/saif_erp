@@ -10,9 +10,10 @@ frappe.after_ajax(() => {
 	if (a.missing) parts.push(`<b>${a.missing}</b> missing passport details`);
 	if (!parts.length) return;
 	if (a.self) {
-		// employee's own documents — they can't open the HR report
+		// employee's own documents — the report is scoped to their own record
+		const url = "/app/query-report/Employee Document Expiry";
 		frappe.show_alert(
-			{ message: `⚠️ Your documents: ${parts.join(" · ")} — please renew and inform HR.`, indicator: "red" },
+			{ message: `⚠️ Your documents: ${parts.join(" · ")} — <a href="${url}">view</a> & inform HR.`, indicator: "red" },
 			20,
 		);
 	} else {

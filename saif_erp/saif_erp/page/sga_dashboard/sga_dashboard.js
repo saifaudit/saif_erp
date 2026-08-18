@@ -85,6 +85,7 @@ function quickActions(isManager) {
 		items.push(
 			["Employees", listHref("employee", {})],
 			["Customers", listHref("customer", {})],
+			["Compliance Register", listHref("compliance-register", {})],
 			["Physical Files", listHref("physical-file-management", {})]
 		);
 	}

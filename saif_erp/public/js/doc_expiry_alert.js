@@ -9,12 +9,20 @@ frappe.after_ajax(() => {
 	if (a.expiring) parts.push(`<b>${a.expiring}</b> expiring in 30 days`);
 	if (a.missing) parts.push(`<b>${a.missing}</b> missing passport details`);
 	if (!parts.length) return;
-	const url = "/app/query-report/Employee Document Expiry";
-	frappe.show_alert(
-		{
-			message: `🪪 Employee documents: ${parts.join(" · ")} — <a href="${url}">review</a>`,
-			indicator: a.expired || a.missing ? "red" : "orange",
-		},
-		20,
-	);
+	if (a.self) {
+		// employee's own documents — they can't open the HR report
+		frappe.show_alert(
+			{ message: `⚠️ Your documents: ${parts.join(" · ")} — please renew and inform HR.`, indicator: "red" },
+			20,
+		);
+	} else {
+		const url = "/app/query-report/Employee Document Expiry";
+		frappe.show_alert(
+			{
+				message: `🪪 Employee documents: ${parts.join(" · ")} — <a href="${url}">review</a>`,
+				indicator: a.expired || a.missing ? "red" : "orange",
+			},
+			20,
+		);
+	}
 });

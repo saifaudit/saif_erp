@@ -524,7 +524,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 		sales_monthly = None
 		aging, aging_total, top_debtors, rev_trend, by_service = [], 0, [], [], []
 		compliance = turnaround = None
-		doc_expiry = None
+		# doc_expiry kept — Admin Support manages employee documents (it holds no salary data)
 
 	return {
 		"greeting": greeting, "manager": True, "full_mgmt": full_mgmt, "counts": counts, "money": money,

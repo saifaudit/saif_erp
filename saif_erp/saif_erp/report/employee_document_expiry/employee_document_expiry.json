@@ -22,6 +22,7 @@
   {"role": "HR Manager"},
   {"role": "HR User"},
   {"role": "Job Order Admin"},
-  {"role": "Job Order Partner"}
+  {"role": "Job Order Partner"},
+  {"role": "Job Order Admin Support"}
  ]
 }

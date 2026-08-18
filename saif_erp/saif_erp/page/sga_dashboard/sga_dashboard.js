@@ -83,6 +83,7 @@ function quickActions(isManager) {
 	);
 	if (isManager) {
 		items.push(
+			["Employees", listHref("employee", {})],
 			["Customers", listHref("customer", {})],
 			["Physical Files", listHref("physical-file-management", {})]
 		);

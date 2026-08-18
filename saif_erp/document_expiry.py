@@ -37,14 +37,17 @@ def band(days):
 	return BANDS[-1][0], BANDS[-1][3], BANDS[-1][4]
 
 
-def get_expiring_documents(company=None, within_days=None, active_only=True):
+def get_expiring_documents(company=None, within_days=None, active_only=True, employee=None):
 	"""One dict per (employee, document) that has an expiry date set, sorted soonest
-	first. within_days limits to documents at/under that many days to expiry."""
+	first. within_days limits to documents at/under that many days to expiry;
+	employee limits to a single Employee (used for the per-employee self alert)."""
 	filt = {}
 	if active_only:
 		filt["status"] = "Active"
 	if company:
 		filt["company"] = company
+	if employee:
+		filt["name"] = employee
 	fields = ["name", "employee_name", "company", "user_id"]
 	for _l, numf, expf in DOCS:
 		fields += [numf, expf]

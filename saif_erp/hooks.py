@@ -306,7 +306,7 @@ fixtures = [
 		"Job Order-custom_draft_sb", "Job Order-cb_draftA", "Job Order-cb_draftB", "Job Order-draft_sent_date", "Job Order-draft_sent_by",
 		"Job Order-draft_approved_date", "Job Order-custom_progress_html", 
 		# 2/3-column layout breaks
-		"Job Order-cb_identifiers", "Job Order-cb_proposal", "Job Order-cb_advance", "Job Order-cb_customer", "Job Order-cb_service", "Job Order-cb_service2",
+		"Job Order-cb_identifiers", "Job Order-cb_proposal", "Job Order-cb_advance", "Job Order-cb_company", "Job Order-cb_customer", "Job Order-cb_service", "Job Order-cb_service2",
 		"Job Order-cb_compliance", "Job Order-cb_billing", "Job Order-cb_billing2",
 		"Job Order-cb_delivery", "Job Order-cb_delivery2", "Job Order-cb_transfer",
 	]]]},

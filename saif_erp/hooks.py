@@ -325,6 +325,9 @@ fixtures = [
 		"Quotation Submitted Alert",
 		"attendance-request-notification",
 		"Attendance Request Approval",
+		"Job Order Reassigned – New Accountant",
+		"Job Order Rejected – Preparer Alert",
+		"Job Order Under Review – Reviewer Alert",
 	]]]},
 	{"doctype": "Email Template", "filters": [["name", "in", [
 		"Leave Approval – Action Required",

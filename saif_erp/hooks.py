@@ -304,10 +304,11 @@ fixtures = [
 		# progress / stage tracking
 		"Job Order-custom_progress_sb", "Job Order-custom_stage", "Job Order-custom_progress",
 		"Job Order-custom_progress_cb", "Job Order-draft_sent_date", "Job Order-draft_sent_by",
-		"Job Order-draft_approved_date",
+		"Job Order-draft_approved_date", "Job Order-custom_progress_html",
 	]]]},
 	{"doctype": "Client Script", "filters": [["name", "in", [
 		"Job Order - Reviewer Rating Access",
+		"Job Order - Progress Checklist",
 		"JB button in quotation and hide create sales order"]]]},
 	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Job Order"], ["field_name", "=", "job_status"], ["property", "=", "options"]]},
 	{"doctype": "Property Setter", "filters": [["doc_type", "=", "Credential Manager"], ["field_name", "=", "portal_password"], ["property", "=", "fieldtype"]]},

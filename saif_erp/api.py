@@ -360,6 +360,10 @@ def dashboard_data(period="year", company=None, att_month=None):
 
 	job_status = kv(frappe.db.sql(f"select job_status v, count(*) c from {jo} where 1=1{cw()} group by job_status", as_dict=True))
 	payment_status = kv(frappe.db.sql(f"select payment_status v, count(*) c from {jo} where 1=1{cw()} group by payment_status", as_dict=True))
+	# active pipeline by workflow stage (computed custom_stage) — drives the dashboard panel
+	job_stages = kv(frappe.db.sql(
+		f"select custom_stage v, count(*) c from {jo} where docstatus=1 "
+		f"and job_status in {ACTIVE_STATUSES}{cw()} group by custom_stage", as_dict=True))
 
 	money_where = "docstatus=1" + (" AND YEAR(job_date)=YEAR(CURDATE())" if period == "year" else "") + cw()
 	m = frappe.db.sql(
@@ -571,6 +575,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 		"approvals": approvals,
 		"job_aging": job_aging, "company_scope": comp, "doc_expiry": doc_expiry, "filings": filings,
 		"active_jobs": active, "job_status": job_status, "payment_status": payment_status,
+		"job_stages": job_stages,
 		"by_service": by_service, "by_month": by_month, "by_accountant": by_accountant,
 		"orphan_active": orphan_active, "proposals": proposals,
 		"aging": aging, "aging_total": aging_total, "top_customers": top_customers,

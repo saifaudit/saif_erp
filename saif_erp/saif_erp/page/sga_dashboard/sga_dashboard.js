@@ -93,6 +93,30 @@ function quickActions(isManager) {
 	return items.map(([l, h]) => `<a href="${h}" style="${st}">${_esc(l)}</a>`).join("");
 }
 
+// Active pipeline by workflow stage (computed custom_stage). Logical order + colour.
+const STAGE_ORDER = [
+	["Pending approval", "var(--sga-slate)"],
+	["Work in progress", "var(--sga-brand)"],
+	["In review", "var(--sga-amber)"],
+	["Awaiting client draft approval", "var(--sga-slate2)"],
+	["Ready to print", "var(--sga-accent)"],
+	["Awaiting payment", "var(--sga-orange)"],
+	["Ready for delivery", "var(--sga-good)"],
+];
+function stageSection(d) {
+	const st = d.job_stages || {};
+	const total = Object.values(st).reduce((a, b) => a + Number(b || 0), 0);
+	if (!total) return "";
+	const max = Math.max(...STAGE_ORDER.map(([s]) => Number(st[s] || 0)), 1);
+	const rows = STAGE_ORDER.filter(([s]) => Number(st[s] || 0) > 0).map(([s, c]) => {
+		const n = Number(st[s] || 0);
+		const w = Math.max(6, Math.round((n / max) * 100));
+		return `<a class="sga-stage" href="${joHref({ custom_stage: s })}"><span class="nm">${_esc(s)}</span><span class="trk"><i style="width:${w}%;background:${c}"></i></span><span class="ct">${n}</span></a>`;
+	}).join("");
+	return section("Active pipeline by stage", `<div class="sga-stages">${rows}</div>
+	  <div class="sga-stagenote">${total} jobs in flight · click a stage to open the list</div>`, true);
+}
+
 const STATUS_META = {
 	Open: { c: "var(--sga-brand-soft)", l: "Open" },
 	Progress: { c: "var(--sga-brand)", l: "In Progress" },
@@ -177,6 +201,7 @@ function render($root, d, actions) {
 	</div>`);
 	if (d.full_mgmt) parts.push(apSec, qaSec, funnelSec);
 	else parts.push(qaSec, apSec, funnelSec); // Admin Support: create actions first
+	parts.push(stageSection(d)); // active pipeline by workflow stage
 
 	// company filter (group has multiple entities)
 	if ((d.companies || []).length > 1) {
@@ -895,6 +920,16 @@ a.fstep:hover{transform:translateY(-2px)}
 .sga-zoho-sync:hover{filter:brightness(1.08)}
 .sga-zoho-sync:disabled{opacity:.6;cursor:default}
 .sga-sub{font-size:11.5px;font-weight:650;color:var(--sga-muted);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 9px}
+.sga-stages{display:flex;flex-direction:column;gap:9px}
+.sga-stage{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
+.sga-stage .nm{width:200px;flex:0 0 auto;font-size:13px;font-weight:600;color:var(--sga-ink)}
+.sga-stage .trk{flex:1;height:24px;background:var(--sga-surface);border:1px solid var(--sga-line);border-radius:6px;overflow:hidden}
+.sga-stage .trk>i{display:block;height:100%;border-radius:6px;min-width:6px}
+.sga-stage .ct{width:44px;text-align:right;font-weight:700;font-size:13px;color:var(--sga-ink)}
+.sga-stage:hover .nm{color:var(--sga-brand)}
+.sga-stage:hover .trk{box-shadow:0 0 0 2px rgba(22,121,76,.15)}
+.sga-stagenote{margin-top:11px;font-size:12px;color:var(--sga-muted)}
+@media(max-width:640px){.sga-stage .nm{width:130px}}
 .sga-warn{margin-top:12px;font-size:12px;color:var(--sga-bad);background:color-mix(in srgb,var(--sga-bad) 10%,transparent);
  border:1px solid color-mix(in srgb,var(--sga-bad) 26%,transparent);border-radius:8px;padding:8px 10px}
 .sga-dash .lnk{cursor:pointer}

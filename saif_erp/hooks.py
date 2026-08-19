@@ -274,10 +274,12 @@ doc_events = {
 		"on_update": [
 			"saif_erp.job_order.sync_approval_status",
 			"saif_erp.compliance.sync_job_order",
+			"saif_erp.job_order.compute_stage",
 		],
 		"on_update_after_submit": [
 			"saif_erp.job_order.sync_approval_status",
 			"saif_erp.compliance.sync_job_order",
+			"saif_erp.job_order.compute_stage",
 		],
 	},
 }
@@ -299,6 +301,10 @@ fixtures = [
 	{"doctype": "Custom Field", "filters": [["name", "in", [
 		"Job Order-workflow_state", "Job Order-custom_review_sb", "Job Order-custom_reviewer_rating",
 		"Job Order-custom_review_remark", "Job Order-custom_reviewed_by", "Job Order-custom_review_date",
+		# progress / stage tracking
+		"Job Order-custom_progress_sb", "Job Order-custom_stage", "Job Order-custom_progress",
+		"Job Order-custom_progress_cb", "Job Order-draft_sent_date", "Job Order-draft_sent_by",
+		"Job Order-draft_approved_date",
 	]]]},
 	{"doctype": "Client Script", "filters": [["name", "in", [
 		"Job Order - Reviewer Rating Access",

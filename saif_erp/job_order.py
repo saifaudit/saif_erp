@@ -32,6 +32,83 @@ def enforce_review(doc, method=None):
 		doc.custom_review_date = frappe.utils.nowdate()
 
 
+# ---------------------------------------------------------------------------
+# Job Order progress / stage tracking (SGA desk process — no fieldwork).
+# Derived from fields already captured across the lifecycle, so there is no
+# separate checklist table and no double entry. See the confirmed process doc.
+# ---------------------------------------------------------------------------
+# Friendly "current activity" label for the gap AFTER each reached WORK milestone.
+# Payment is NOT a linear stage (it can be an early advance) — it only gates
+# delivery-readiness (delivery is made on/after full payment).
+_NEXT_STAGE = {
+	"Approved": "Work in progress",
+	"Sent for review": "In review",
+	"Reviewed": "Ready — send draft to client",
+	"Draft sent to client": "Awaiting client draft approval",
+	"Draft approved": "Ready to print",          # audit: only reached before printing
+}
+
+
+def _is_audit(doc):
+	return "audit" in (doc.get("service") or "").lower()
+
+
+def _milestones(doc):
+	"""Ordered WORK checkpoints (label, done?). 'Report printed' applies to audit
+	jobs only (only audit reports are printed). Payment is handled separately."""
+	js = doc.get("job_status")
+	m = [
+		("Approved", doc.get("approval_status") == "Approved"),
+		("Sent for review", js == "Under Review" or bool(doc.get("custom_review_date"))),
+		("Reviewed", bool(doc.get("custom_review_date") or doc.get("custom_reviewer_rating"))),
+		("Draft sent to client", bool(doc.get("draft_sent_date"))),
+		("Draft approved", bool(doc.get("draft_approved_date"))),
+	]
+	if _is_audit(doc):
+		m.append(("Report printed", bool(doc.get("report_printed"))))
+	# report_delivery_status is a Yes/No field ("No" is not "delivered")
+	m.append(("Delivered", doc.get("report_delivery_status") == "Yes" or bool(doc.get("report_delivery_date"))))
+	return m
+
+
+def compute_stage(doc, method=None):
+	"""Set custom_stage + custom_progress from the lifecycle fields. Runs on
+	on_update and on_update_after_submit (most progress happens post-submit)."""
+	m = _milestones(doc)
+	labels = [x[0] for x in m]
+	total = len(m)
+	furthest = -1
+	for i, (_lbl, done) in enumerate(m):
+		if done:
+			furthest = i
+	paid = doc.get("payment_status") == "Paid"
+	delivered = m[-1][1]
+	js = doc.get("job_status")
+
+	if js == "Closed (Failed)":
+		stage, pct = "Closed (Failed)", 100
+	elif js == "Finished":                           # terminal work status
+		stage, pct = ("Delivered — complete" if delivered else "Finished — complete"), 100
+	elif furthest == total - 1:                      # Delivered
+		stage, pct = "Delivered — complete", 100
+	elif furthest < 0:
+		stage, pct = "Pending approval", 0
+	elif furthest == total - 2:                      # deliverable ready (draft approved / printed)
+		stage = "Ready for delivery" if paid else "Awaiting payment"
+		pct = round((furthest + 1) / total * 100)
+	else:
+		stage = _NEXT_STAGE.get(labels[furthest], labels[furthest])
+		pct = round((furthest + 1) / total * 100)
+
+	# auto-stamp who sent the draft
+	if doc.get("draft_sent_date") and not doc.get("draft_sent_by"):
+		doc.db_set("draft_sent_by", frappe.session.user, update_modified=False)
+	if doc.get("custom_stage") != stage:
+		doc.db_set("custom_stage", stage, update_modified=False)
+	if frappe.utils.cint(doc.get("custom_progress")) != int(pct):
+		doc.db_set("custom_progress", int(pct), update_modified=False)
+
+
 # Approval Workflow state -> legacy approval_status (kept in sync for reports/number cards)
 STATE_TO_APPROVAL = {
 	"Draft": "Pending",

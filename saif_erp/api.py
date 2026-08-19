@@ -323,6 +323,10 @@ def dashboard_data(period="year", company=None, att_month=None):
 		}
 		my_aging = _job_aging(jo, " AND accountant=%(me)s", {"me": me})
 		my_filings = _filings_summary(accountant=me)
+		my_stages = {r["v"]: r["c"] for r in frappe.db.sql(
+			f"select custom_stage v, count(*) c from {jo} where docstatus=1 "
+			f"and accountant=%(me)s and job_status in {ACTIVE_STATUSES} group by custom_stage",
+			{"me": me}, as_dict=True)}
 		emp = frappe.db.get_value("Employee", {"user_id": me}, "name")
 		_p = _personal(emp)
 		my_leave, my_attendance, my_checkins = _p["my_leave"], _p["my_attendance"], _p["my_checkins"]
@@ -330,7 +334,7 @@ def dashboard_data(period="year", company=None, att_month=None):
 			"greeting": greeting, "manager": False, "my_status": my_status, "my_counts": my_counts,
 			"recent_mine": recent, "my_leave": my_leave, "my_action": my_action,
 			"my_by_service": my_by_service, "my_payment": my_payment, "my_aging": my_aging,
-			"my_filings": my_filings,
+			"my_filings": my_filings, "my_stages": my_stages,
 			"my_attendance": my_attendance, "my_checkins": my_checkins, "my_proposals": my_proposals,
 		}
 

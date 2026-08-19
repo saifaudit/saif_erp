@@ -103,8 +103,8 @@ const STAGE_ORDER = [
 	["Awaiting payment", "var(--sga-orange)"],
 	["Ready for delivery", "var(--sga-good)"],
 ];
-function stageSection(d) {
-	const st = d.job_stages || {};
+function stageBars(st) {
+	st = st || {};
 	const total = Object.values(st).reduce((a, b) => a + Number(b || 0), 0);
 	if (!total) return "";
 	const max = Math.max(...STAGE_ORDER.map(([s]) => Number(st[s] || 0)), 1);
@@ -113,8 +113,15 @@ function stageSection(d) {
 		const w = Math.max(6, Math.round((n / max) * 100));
 		return `<a class="sga-stage" href="${joHref({ custom_stage: s })}"><span class="nm">${_esc(s)}</span><span class="trk"><i style="width:${w}%;background:${c}"></i></span><span class="ct">${n}</span></a>`;
 	}).join("");
-	return section("Active pipeline by stage", `<div class="sga-stages">${rows}</div>
-	  <div class="sga-stagenote">${total} jobs in flight · click a stage to open the list</div>`, true);
+	return `<div class="sga-stages">${rows}</div>
+	  <div class="sga-stagenote">${total} jobs in flight · click a stage to open the list</div>`;
+}
+function stageSection(d) {
+	// scoping (firm-wide vs my own) follows joHref, which auto-adds accountant= in the staff view
+	const b = stageBars(d.job_stages || d.my_stages);
+	if (!b) return "";
+	const title = d.manager ? "Active pipeline by stage" : "My work by stage";
+	return section(title, b, true);
 }
 
 const STATUS_META = {
@@ -440,6 +447,9 @@ function render_limited($root, d) {
 		return `<a class="sga-stat" href="${joHref({ job_status: s })}"><span class="dot" style="background:${m.c}"></span><div class="v">${_int(ms[s])}</div><div class="n">${_esc(m.l)}</div></a>`;
 	}).join("") || '<div class="sga-empty">No job orders assigned to you yet.</div>';
 	parts.push(section("My job status", `<div class="sga-stats">${tiles}</div>`));
+
+	// my active work by workflow stage (scoped to me via joHref)
+	parts.push(stageSection(d));
 
 	// my job order aging (active jobs by days since job date)
 	parts.push(section("My job order aging", `<div class="sga-card"><div class="sga-qtitle">Active jobs by age · click a bucket to review</div><div class="sga-stats">${agingTiles(d.my_aging, "accountant=" + encodeURIComponent(g.user || "") + "&")}</div><div style="margin-top:14px">${agingReportBtn()}</div></div>`));

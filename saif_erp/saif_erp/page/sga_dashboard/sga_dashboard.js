@@ -97,6 +97,7 @@ function quickActions(isManager) {
 const STAGE_ORDER = [
 	["Pending approval", "var(--sga-slate)"],
 	["Work in progress", "var(--sga-brand)"],
+	["On hold / awaiting client", "var(--sga-orange)"],
 	["In review", "var(--sga-amber)"],
 	["Awaiting client draft approval", "var(--sga-slate2)"],
 	["Ready to print", "var(--sga-accent)"],

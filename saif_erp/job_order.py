@@ -100,6 +100,10 @@ def compute_stage(doc, method=None):
 		stage = _NEXT_STAGE.get(labels[furthest], labels[furthest])
 		pct = round((furthest + 1) / total * 100)
 
+	# stalled jobs (paused / waiting on the client) surface as their own stage
+	if stage == "Work in progress" and js in ("Temporarily stopped", "Awaiting Client Data"):
+		stage = "On hold / awaiting client"
+
 	# auto-stamp who sent the draft
 	if doc.get("draft_sent_date") and not doc.get("draft_sent_by"):
 		doc.db_set("draft_sent_by", frappe.session.user, update_modified=False)

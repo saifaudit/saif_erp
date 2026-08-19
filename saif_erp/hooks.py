@@ -303,7 +303,7 @@ fixtures = [
 		"Job Order-custom_review_remark", "Job Order-custom_reviewed_by", "Job Order-custom_review_date",
 		# progress / stage tracking
 		"Job Order-custom_progress_sb", "Job Order-custom_stage", "Job Order-custom_progress",
-		"Job Order-custom_progress_cb", "Job Order-draft_sent_date", "Job Order-draft_sent_by",
+		"Job Order-custom_draft_sb", "Job Order-cb_draftA", "Job Order-cb_draftB", "Job Order-draft_sent_date", "Job Order-draft_sent_by",
 		"Job Order-draft_approved_date", "Job Order-custom_progress_html", 
 		# 2/3-column layout breaks
 		"Job Order-cb_identifiers", "Job Order-cb_proposal", "Job Order-cb_advance", "Job Order-cb_customer", "Job Order-cb_service", "Job Order-cb_service2",

@@ -305,6 +305,10 @@ fixtures = [
 		"Job Order-custom_progress_sb", "Job Order-custom_stage", "Job Order-custom_progress",
 		"Job Order-custom_progress_cb", "Job Order-draft_sent_date", "Job Order-draft_sent_by",
 		"Job Order-draft_approved_date", "Job Order-custom_progress_html", "Job Order-tab_billing",
+		# 2/3-column layout breaks
+		"Job Order-cb_customer", "Job Order-cb_service", "Job Order-cb_service2",
+		"Job Order-cb_compliance", "Job Order-cb_billing", "Job Order-cb_billing2",
+		"Job Order-cb_delivery", "Job Order-cb_delivery2", "Job Order-cb_transfer",
 	]]]},
 	{"doctype": "Client Script", "filters": [["name", "in", [
 		"Job Order - Reviewer Rating Access",

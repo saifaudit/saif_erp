@@ -11,7 +11,7 @@
   "hide_custom": 0,
   "icon": "message",
   "indicator_color": "green",
-  "is_hidden": 1,
+  "is_hidden": 0,
   "label": "Admin Dash",
   "link_to": null,
   "link_type": null,
@@ -277,7 +277,7 @@
   "icon": "file",
   "indicator_color": "green",
   "is_hidden": 0,
-  "label": "Reports",
+  "label": "SGA Reports",
   "link_to": null,
   "link_type": "DocType",
   "links": [
@@ -302,14 +302,14 @@
     "hidden": 0,
     "icon": null,
     "is_query_report": 0,
+    "label": "Job Order",
     "link_count": 0,
+    "link_to": "Job Order",
     "link_type": "DocType",
     "onboard": 0,
     "only_for": null,
     "report_ref_doctype": null,
-    "type": "Link",
-    "label": "Job Order",
-    "link_to": "Job Order"
+    "type": "Link"
    },
    {
     "dependencies": null,
@@ -317,14 +317,14 @@
     "hidden": 0,
     "icon": null,
     "is_query_report": 0,
+    "label": "Proposal",
     "link_count": 0,
+    "link_to": "Quotation",
     "link_type": "DocType",
     "onboard": 0,
     "only_for": null,
     "report_ref_doctype": null,
-    "type": "Link",
-    "label": "Proposal",
-    "link_to": "Quotation"
+    "type": "Link"
    },
    {
     "dependencies": null,

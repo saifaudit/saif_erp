@@ -293,7 +293,7 @@
   "function": "Count",
   "is_public": 1,
   "is_standard": 0,
-  "label": "Proposal \u2192Job Orders",
+  "label": "Proposal →Job Orders",
   "method": null,
   "modified": "2026-08-13 12:08:04.649706",
   "module": null,

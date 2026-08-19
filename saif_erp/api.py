@@ -528,7 +528,9 @@ def dashboard_data(period="year", company=None, att_month=None):
 		)
 
 	counts = {
-		"job_orders": frappe.db.count("Job Order", cfilt({})),
+		# live job orders (submitted) — excludes drafts/cancelled so it reconciles
+		# with the job-status and pipeline cards
+		"job_orders": frappe.db.count("Job Order", cfilt({"docstatus": 1})),
 		"customers": frappe.db.count("Customer"),
 		"employees": frappe.db.count("Employee", {"status": "Active"}),
 		"proposals": proposals["total"],

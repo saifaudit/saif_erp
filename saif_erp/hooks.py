@@ -318,4 +318,16 @@ fixtures = [
 	]]]},
 	# SAIF dashboard workspaces
 	{"doctype": "Workspace", "filters": [["name", "in", ["Admin Dash", "Job Orders", "SGA Reports"]]]},
+	# Redesigned workflow email notifications (branded HTML, guarded Jinja)
+	{"doctype": "Notification", "filters": [["name", "in", [
+		"New Job Order Created – Approval Required | {{ doc.name }}",
+		"Notification Settings (Approved → email to Accountant)",
+		"Quotation Submitted Alert",
+		"attendance-request-notification",
+		"Attendance Request Approval",
+	]]]},
+	{"doctype": "Email Template", "filters": [["name", "in", [
+		"Leave Approval – Action Required",
+		"Leave Status Update – Employee Notification",
+	]]]},
 ]

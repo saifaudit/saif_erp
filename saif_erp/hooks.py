@@ -304,7 +304,7 @@ fixtures = [
 		# progress / stage tracking
 		"Job Order-custom_progress_sb", "Job Order-custom_stage", "Job Order-custom_progress",
 		"Job Order-custom_progress_cb", "Job Order-draft_sent_date", "Job Order-draft_sent_by",
-		"Job Order-draft_approved_date", "Job Order-custom_progress_html",
+		"Job Order-draft_approved_date", "Job Order-custom_progress_html", "Job Order-tab_billing",
 	]]]},
 	{"doctype": "Client Script", "filters": [["name", "in", [
 		"Job Order - Reviewer Rating Access",

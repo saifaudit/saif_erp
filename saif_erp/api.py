@@ -362,8 +362,10 @@ def dashboard_data(period="year", company=None, att_month=None):
 	def kv(rows):
 		return {r["v"]: r["c"] for r in rows}
 
-	job_status = kv(frappe.db.sql(f"select job_status v, count(*) c from {jo} where 1=1{cw()} group by job_status", as_dict=True))
-	payment_status = kv(frappe.db.sql(f"select payment_status v, count(*) c from {jo} where 1=1{cw()} group by payment_status", as_dict=True))
+	# live = submitted only (docstatus=1); exclude cancelled/draft so these operational
+	# cards reconcile with the pipeline-by-stage panel.
+	job_status = kv(frappe.db.sql(f"select job_status v, count(*) c from {jo} where docstatus=1{cw()} group by job_status", as_dict=True))
+	payment_status = kv(frappe.db.sql(f"select payment_status v, count(*) c from {jo} where docstatus=1{cw()} group by payment_status", as_dict=True))
 	# active pipeline by workflow stage (computed custom_stage) — drives the dashboard panel
 	job_stages = kv(frappe.db.sql(
 		f"select custom_stage v, count(*) c from {jo} where docstatus=1 "
